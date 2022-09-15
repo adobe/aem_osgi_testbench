@@ -1,0 +1,2401 @@
+<!--/*
+    Copyright 2022 Adobe Systems Incorporated
+  
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+  
+        http://www.apache.org/licenses/LICENSE-2.0
+  
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+*/-->
+
+
+<html>
+
+<head>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
+
+<link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
+
+<style>
+.ui-widget-content {
+    border: 0px !important;
+}
+
+.codeAppearance {
+	font-family: "Courier New", Courier, "Lucida Sans Typewriter", "​Lucida Typewriter", monospace !important; 
+	font-size: 13px !important;
+	
+}
+</style>
+
+ <script>
+ 
+ 	//Global version
+ 	var gReleaseVer = "v2.1";
+ 
+ 	/**
+ 	 *  NOTE:
+ 	 *
+ 	 *  The values below are used throughout all functions.
+ 	 *  If different, change the values below to reflect your
+ 	 *  own local AEM environment.
+ 	 *
+ 	 */
+	var username="admin";
+	var password="admin";
+	var aemServerVal = "http://localhost:4502";
+	
+	function setServerVal() {
+			aemServerVal = $("#aemServer").val();
+			$("#resultsBox").val("Set AEM server endpoint to" + aemServerVal);
+	}
+ 
+ 	function postIt() {
+ 		console.log("In Postit");
+ 		
+ 		var myData = '<?xml version="1.0" encoding="UTF-8"?><afData><afUnboundData><data><textbox1455878674524>Jason</textbox1455878674524><textbox_9344084441580169841551>Fabbri</textbox_9344084441580169841551><numericbox1580170172623>9167880655</numericbox1580170172623></data></afUnboundData><afBoundData><data xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/"/></afBoundData><afSubmissionInfo><computedMetaInfo/><stateOverrides/><signers/><afPath>/content/dam/formsanddocuments/wa-dot-big-foot-reporting</afPath><afSubmissionTime>20200821093720</afSubmissionTime></afSubmissionInfo></afData>';
+	}
+	
+	
+	//Generate me a GUID wouldya?	
+	function getGuid() {
+		  var s = '';
+		  var randomchar = function() {
+			var n = Math.floor(Math.random() * 62);
+			if (n < 10) return n; //1-10
+			if (n < 36) return String.fromCharCode(n + 55); //A-Z
+			return String.fromCharCode(n + 61); //a-z
+		  }
+		  while (s.length < 26) 
+		  	  s += randomchar();
+
+		  $("#payloadGuidVal").val(s.toUpperCase());
+		  $("#fullTriggerPayloadGuidVal").val(s.toUpperCase());
+	}
+	
+	// POST payload XML file into the JCR
+	function postPayloadFile() {
+		
+		//This works... now how to create a file from scratch...?
+		//var payloadFile = $("#payloadFileVal")[0].files[0];
+		
+		//This works to create a dynamic file
+		//var payloadFile = new File(["<xml>foo</xml>"], "foo.xml", {
+		//  type: "text/xml",
+		//});
+		
+		var payloadName = $("#payloadFileTitleVal").val();
+		var payloadUploadTokenValue = $("#payloadUploadTokenVal").val();
+		var payloadDate = $("#payloadDateVal").val();
+		var payloadGuid =  $("#payloadGuidVal").val();
+		
+		//Create the payload based on XML provided...
+		var payloadFile = new File([$("#payloadContentVal").val()], payloadName, {
+		  type: "text/xml",
+		  //type: "application/octet-stream"
+		});
+		
+		var fd = new FormData();
+		fd.append(payloadName, payloadFile);
+		
+		$.ajax({
+		   url: aemServerVal + "/var/fd/dashboard/payload/server0/" + payloadDate + "/" + payloadGuid,
+		   type: "POST",
+		   data: fd,
+		   processData: false,  // tell jQuery not to process the data
+		   contentType: false,  // tell jQuery not to set contentType
+          	enctype: "multipart/form-data",
+			headers: {
+				//"Content-Type": "application/octet-stream",
+				"Authorization": "Basic " + btoa(username + ":" + password),
+				"CSRF-Token": payloadUploadTokenValue
+			},
+		   success: function(data) {
+			   console.log("Woohoo success");
+				console.log(data.toString());
+				$("#resultsBox").val(JSON.stringify(data));
+		   },
+		   error: function(data) {
+                   console.log("Uh oh.");
+                   console.log(data);
+                   $("#resultsBox").val(JSON.stringify(data));
+		   }
+		});
+	}  
+		
+	//Resume a previously failed workflow
+	function resumeWorkflow() {
+		var stalledWorkflowIDValue = $("#workflowToResumeVal").val();
+		
+		var workflowUpdateTokenValue = $("#UpdateTokenVal").val();
+		
+		var resumeURL = aemServerVal + "/etc/workflow/instances" + stalledWorkflowIDValue;
+			
+		$.ajax({
+			type:'POST',
+			url: resumeURL,
+			dataType: 'json',
+			data: {
+				action: "RESUME",
+			},
+			
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+				"Authorization": "Basic " + btoa(username + ":" + password),
+				"CSRF-Token": workflowUpdateTokenValue
+			},
+			success:function(data){
+					console.log("Woohoo success");
+					console.log(data.toString());
+					$("#resultsBox").val(JSON.stringify(data));
+			},
+			error:function(data) {
+			   console.log("Uh oh.");
+			   console.log(data);
+			   $("#resultsBox").val(JSON.stringify(data));
+			}
+		 });
+		
+	}
+	
+	
+	//Update/Set the title of a workflow
+	function setWorkflowTitle() {
+		var existingWorkflowIDValue = $("#workflowURIVal").val();
+		var workflowNameValue = $("#workflowTitleVal").val();
+		var workflowUpdateTokenValue = $("#UpdateTokenVal").val();
+		var updateURL = aemServerVal + "/etc/workflow/instances" + existingWorkflowIDValue;
+				
+		$.ajax({
+				type:'POST',
+				url: updateURL,
+				dataType: 'json',
+          		data: {
+          			action: "UPDATE",
+          			workflowTitle: workflowNameValue,
+          			primaryType: "nt:file"
+          		},
+          		
+            	headers: {
+            		"Content-Type": "application/x-www-form-urlencoded",
+					"Authorization": "Basic " + btoa(username + ":" + password),
+					"CSRF-Token": workflowUpdateTokenValue
+				},
+				success:function(data){
+						console.log("Woohoo success");
+                  		console.log(data.toString());
+                  		$("#resultsBox").val(JSON.stringify(data));
+				},
+           		error:function(data) {
+                   console.log("Uh oh.");
+                   console.log(data);
+                   $("#resultsBox").val(JSON.stringify(data));
+                }
+		 });
+		
+	}
+	
+	//PostNewInstance notes....
+	/*
+			
+		
+		// Get the token
+		// /libs/granite/csrf/token.json
+		
+		//   xhr.setRequestHeader("CSRF-Token", token);
+		
+		////"CSRF-Token": tokenValue
+		
+		//data: JSON.stringify({model: modelIDValue, payloadType: payloadType, payload: payloadValue}),
+		
+		//application/x-www-form-urlencoded
+		//multipart/form-data
+		//text/html,application/xhtml+xml,application/xml
+ */
+ 
+ 
+ 
+ 	//Initiate Full Workflow Sequence
+ 	/* Makes calls to series of APIs
+ 	 * to trigger a specific workflow:
+ 	 *
+ 	 * 1. Upload Workflow Payload
+ 	 * 2. Create new Workflow
+ 	 * 3. Set new Workflow Title
+ 	 */
+	function postWorkflow() {
+		
+		var modelIDValue = $("#modelIDVal").val();
+		var payloadPathValue = $("#payloadPathVal").val();
+		var payloadType = $("#payloadTypeVal").val();
+		
+		var tokenValue = $("#tokenVal").val();
+		
+		$.ajax({
+				type:'POST',
+				url: aemServerVal + '/etc/workflow/instances',
+				dataType: 'json',
+          		data: {
+          			model: modelIDValue,
+          			payloadType: payloadType,
+          			payload: payloadPathValue
+          		},
+          		
+            	headers: {
+            		"Content-Type": "application/x-www-form-urlencoded",
+					"Authorization": "Basic " + btoa(username + ":" + password),
+					"CSRF-Token": tokenValue
+				},
+				success:function(data){
+						console.log("Woohoo success");
+                  		console.log(data.toString());
+                  		$("#resultsBox").val(JSON.stringify(data));
+				},
+           		error:function(data) {
+                   console.log("Uh oh.");
+                   console.log(data);
+                   $("#resultsBox").val(JSON.stringify(data));
+                }
+		 });
+		
+	}
+	
+	// Initiate new workflow instance by
+	// calling a series of APIs sequentially...
+	
+	// 1. POST workflow payload
+	// 2. POST new workflow instance
+	// 3. POST workflow title update 
+	function postInitiateFullWorkflow() {
+		
+		var fullTriggerPayloadName = $("#fullTriggerPayloadTitleVal").val();
+		var fullTriggerPayloadUploadTokenValue = $("#fullTriggerWorkflowToken").val();
+		var fullTriggerPayloadDate = $("#fullTriggerPayloadDateVal").val();
+		var fullTriggerPayloadGuid =  $("#fullTriggerPayloadGuidVal").val();
+		
+		var fullTriggerPayloadContentVal = $("#fullTriggerPayloadContentVal").val();
+		
+		var fullTriggerWorkflowVal = $("#fullTriggerWorkflowList").val();
+		
+		var fullTriggerPayloadTitle = $("#fullTriggerPayloadTitleVal").val();
+		
+		//Create the payload based on XML provided...
+		var fullTriggerPayloadFile = new File([fullTriggerPayloadContentVal], fullTriggerPayloadName, {
+		  //type: "text/xml",
+		  type: "application/octet-stream"
+		});
+		
+		if ( fullTriggerPayloadName == "" || fullTriggerPayloadUploadTokenValue == "" || fullTriggerPayloadDate == ""
+			|| fullTriggerPayloadGuid == "" || fullTriggerPayloadContentVal == "" ) {
+			alert("All fields must be completed for Trigger Full Workflow");
+			return;
+		}
+		
+		var fd = new FormData();
+		
+		//Can we append input variables here see 
+		//https://sling.apache.org/documentation/bundles/manipulating-content-the-slingpostservlet-servlets-post.html#content-creation-or-modification-1
+		fd.append(fullTriggerPayloadName, fullTriggerPayloadFile);
+
+		//jfabbri
+		
+		// 1. First, POST workflow payload
+		$.ajax({
+		   url: aemServerVal + "/var/fd/dashboard/payload/server0/" + fullTriggerPayloadDate + "/" + fullTriggerPayloadGuid,
+		   type: "POST",
+		   data: fd,
+		   processData: false,  // tell jQuery not to process the data
+		   contentType: false,  // tell jQuery not to set contentType
+           encType: "multipart/form-data",
+
+           //contentType: "application/octet-stream",
+           //contentType: "multipart/form-data",
+			headers: {
+				//"Content-Type": "application/octet-stream",
+				"Authorization": "Basic " + btoa(username + ":" + password),
+				"CSRF-Token": fullTriggerPayloadUploadTokenValue
+			},
+			
+		   success: function(data) {
+		   	   $("#resultsBox").val("Success - Post Workflow Payload Success \n\n");
+		   	   
+		   	   $("#resultsBox").val($("#resultsBox").val() + "Payload posted to: /var/fd/dashboard/payload/server0/" + fullTriggerPayloadDate + "/" + fullTriggerPayloadGuid + "\n\n");
+		   	   
+		   	   
+			   console.log("Success - Post Workflow Success");
+			   console.log(data.toString());
+			   
+			   $("#resultsBox").val($("#resultsBox").val() + "Step 1) Payload upload a success. \n\n");
+			   
+			   $("#resultsBox").val( $("#resultsBox").val() + JSON.stringify(data) + "\n\n");
+			   
+			   $("#resultsBox").val( $("#resultsBox").val() +  " Proceeding w Step 2) Creating Workflow Instance \n\n");
+			   
+			   $("#resultsBox").val( $("#resultsBox").val() + "Payload path: " + "/var/fd/dashboard/payload/server0/" + fullTriggerPayloadDate + "/" + fullTriggerPayloadGuid + "/" + fullTriggerPayloadName + "\n\n" );
+			   
+			   // 2. Create a workflow from the upload
+			   
+			   $("#resultsBox").val( $("#resultsBox").val() + "Triggering workflow now with following:\n\n");
+			   
+			   $("#resultsBox").val( $("#resultsBox").val() + "Full Workflow Value: " +  fullTriggerWorkflowVal + "\n\n");
+			   
+			   $("#resultsBox").val( $("#resultsBox").val() + "Workflow Title: " + fullTriggerPayloadTitle + "\n\n");
+			   
+			   $("#resultsBox").val( $("#resultsBox").val() + "Path to payload: " + "/var/fd/dashboard/payload/server0/" + fullTriggerPayloadDate + "/" + fullTriggerPayloadGuid + "/" + "\n\n");
+			   
+			   //+ fullTriggerPayloadName
+			   	$.ajax({
+					type:'POST',
+					url: aemServerVal + '/etc/workflow/instances',
+					dataType: 'json',
+					data: {
+						model: fullTriggerWorkflowVal,
+						payloadType: "JCR_PATH",
+						title: fullTriggerPayloadTitle,
+						payload: "/var/fd/dashboard/payload/server0/" + fullTriggerPayloadDate + "/" + fullTriggerPayloadGuid + "/" 
+					},
+					
+					headers: {
+						"Content-Type": "application/x-www-form-urlencoded",
+						"Authorization": "Basic " + btoa(username + ":" + password),
+						"CSRF-Token": fullTriggerPayloadUploadTokenValue
+					},
+					success:function(data){
+						console.log("Create workflow success");
+						console.log(data.toString());
+						$("#resultsBox").val($("#resultsBox").val() + JSON.stringify(data) + "\n\n");
+						
+						$("#resultsBox").val($("#resultsBox").val() + "Setting unique workflow title..." + "\n\n");
+						
+						
+						$.ajax({
+								type:'POST',
+								url: aemServerVal + '/etc/workflow/instances',
+								data: {
+									action: "UPDATE",
+									workflowTitle: "My Test Title"
+								},
+								
+								headers: {
+									"Content-Type": "application/x-www-form-urlencoded",
+									"Authorization": "Basic " + btoa(username + ":" + password),
+									"CSRF-Token": fullTriggerPayloadUploadTokenValue
+								},
+								success:function(data){
+										$("#resultsBox").val($("#resultsBox").val() + "Success updating workflow title" + "\n\n");
+										console.log(data.toString());
+										$("#resultsBox").val($("#resultsBox").val() + JSON.stringify(data) + "\n\n");
+								},
+								error:function(data) {
+								   $("#resultsBox").val($("#resultsBox").val() + "Error updating workflow title" + "\n\n");
+								   console.log(data);
+								   $("#resultsBox").val(JSON.stringify(data));
+								}
+						});
+						
+						
+		
+					},
+					//Note creation of workflow returns a 201 (which is success) but JQuery thinks anything other than 200 is an error...
+					error:function(data) {
+					   console.log("Uh oh. Create workflow error.");
+					   console.log(data);
+					   $("#resultsBox").val($("#resultsBox").val() + JSON.stringify(data));
+					}
+				});
+			   
+			   
+			   // 2. Next create a new workflow instance w new workflow
+			   /*
+			   	$.ajax({
+					type:'POST',
+					url: aemServerVal + '/etc/workflow/instances',
+					dataType: 'json',
+					data: {
+						model: fullTriggerWorkflowVal,
+						payloadType: "JCR_PATH",
+						title: fullTriggerPayloadTitle,
+						payload: "/var/fd/dashboard/payload/server0/" + fullTriggerPayloadDate + "/" + fullTriggerPayloadGuid + "/" + fullTriggerPayloadName
+					},
+					
+					headers: {
+						"Content-Type": "application/x-www-form-urlencoded",
+						"Authorization": "Basic " + btoa(username + ":" + password),
+						"CSRF-Token": fullTriggerPayloadUploadTokenValue
+					},
+					success:function(data){
+							console.log("Step 2) Workflow instance creation success. \n");
+							console.log(data.toString());
+							
+							$("#resultsBox").val( $("#resultsBox").val() + " Step 2) Workflow instance creation success. \n");
+							
+							$("#resultsBox").val( $("#resultsBox").val() + JSON.stringify(data) + "\n");
+							
+							console.log("Returned from success for step 2");
+							
+							//Pick up the confirmed path to the new workflow in the response
+							//and use it to update the title
+							
+							// 3. Finally set new workflow title
+							$.ajax({
+								type:'POST',
+								url: aemServerVal + '/etc/workflow/instances',
+								data: {
+									action: "UPDATE",
+									workflowTitle: payloadType
+								},
+								
+								headers: {
+									"Content-Type": "application/x-www-form-urlencoded",
+									"Authorization": "Basic " + btoa(username + ":" + password),
+									"CSRF-Token": tokenValue
+								},
+								success:function(data){
+										console.log("Woohoo success");
+										console.log(data.toString());
+										$("#resultsBox").val(JSON.stringify(data));
+								},
+								error:function(data) {
+								   console.log("Uh oh.");
+								   console.log(data);
+								   $("#resultsBox").val(JSON.stringify(data));
+								}
+								
+								var fullTriggerPayloadFile = new File([fullTriggerPayloadContentVal], fullTriggerPayloadName, {
+								  //type: "text/xml",
+								  type: "application/octet-stream"
+								});
+		
+								if ( fullTriggerPayloadName == "" || fullTriggerPayloadUploadTokenValue == "" || fullTriggerPayloadDate == ""
+									|| fullTriggerPayloadGuid == "" || fullTriggerPayloadContentVal == "" ) {
+									alert("All fields must be completed for Trigger Full Workflow");
+									return;
+								}
+			
+								var fd = new FormData();
+								fd.append(fullTriggerPayloadName, fullTriggerPayloadFile);
+									
+							},
+							error:function(data) {
+							   console.log("**** Uh oh.");
+							   console.log(data);
+							 
+							   $("#resultsBox").val( $("#resultsBox").val() + "\n\n*** Error. Danger Will Robinson!! ***" + "\n\n" + JSON.stringify(data));
+							}
+			
+							
+					}
+					*/
+			   
+			   
+		   },  
+		   error: function(data) {
+                   console.log("Uh oh. Post Workflow Upload Error.");
+                   console.log(data);
+                   $("#resultsBox").val(JSON.stringify(data));
+		   }
+		   
+		});
+		
+		
+	}
+	
+	//Get the CSRF token
+	function getCSRFToken() {
+			$.ajax({
+				type:'GET',
+				url: aemServerVal + '/libs/granite/csrf/token.json',
+				headers: {
+					"Authorization": "Basic " + btoa(username + ":" + password)
+				},
+				success:function(data){
+					console.log("Woohoo success");
+					console.log(data.toString());
+					$("#resultsBox").val(JSON.stringify(data));
+					
+					console.log( "Token Val: " + data['token']);	
+					
+					$("#fullTriggerWorkflowToken").val(data['token']);
+				},
+           		error:function(data) {
+                   console.log("Uh oh.");
+                   console.log(data);
+                }
+		 });
+		
+	}
+	
+	//Returns list of available workflow models
+	function getWorkflowModels() {
+			$.ajax({
+				type:'GET',
+				url: aemServerVal + '/etc/workflow/models.json',
+				headers: {
+					"Authorization": "Basic " + btoa(username + ":" + password)
+				},
+				success:function(data){
+						console.log("Woohoo success");
+                  		console.log(data.toString());
+                  		$("#resultsBox").val(JSON.stringify(data));
+                  		//alert("Booom. It worked.");
+				},
+           		error:function(data) {
+                   console.log("Uh oh.");
+                   console.log(data);
+                  //alert("No dice.");
+                }
+		 });
+		
+	}
+	
+	//Returns list of running workflow instances
+	function getRunningInstances() {
+			$.ajax({
+				type:'GET',
+				url: aemServerVal + '/etc/workflow/instances.RUNNING.json',
+				headers: {
+					"Authorization": "Basic " + btoa(username + ":" + password)
+				},
+				success:function(data){
+						console.log("Woohoo success");
+                  		console.log(data.toString());
+                  		$("#resultsBox").val(JSON.stringify(data));
+				},
+           		error:function(data) {
+                   console.log("Uh oh.");
+                   console.log(data);
+                }
+		 });
+		
+	}
+	
+	//Returns list of suspended workflow instances
+	function getSuspendedInstances() {
+			$.ajax({
+				type:'GET',
+				url: aemServerVal + '/etc/workflow/instances.SUSPENDED.json',
+				headers: {
+					"Authorization": "Basic " + btoa(username + ":" + password)
+				},
+				success:function(data){
+						console.log("Woohoo success");
+                  		console.log(data.toString());
+                  		$("#resultsBox").val(JSON.stringify(data));
+				},
+           		error:function(data) {
+                   console.log("Uh oh.");
+                   console.log(data);
+                }
+		 });
+		
+	}
+	
+	
+	//Returns list of aborted workflow instances
+	function getAbortedInstances() {
+			$.ajax({
+				type:'GET',
+				url: aemServerVal + '/etc/workflow/instances.ABORTED.json',
+				headers: {
+					"Authorization": "Basic " + btoa(username + ":" + password)
+				},
+				success:function(data){
+						console.log("Woohoo success");
+                  		console.log(data.toString());
+                  		$("#resultsBox").val(JSON.stringify(data));
+				},
+           		error:function(data) {
+                   console.log("Uh oh.");
+                   console.log(data);
+                }
+		 });
+		
+	}
+	
+		
+	//Returns list of completed workflow instances
+	function getCompletedInstances() {
+			$.ajax({
+				type:'GET',
+				url: aemServerVal + '/etc/workflow/instances.COMPLETED.json',
+				headers: {
+					"Authorization": "Basic " + btoa(username + ":" + password)
+				},
+				success:function(data){
+						console.log("Woohoo success");
+                  		console.log(data.toString());
+                  		$("#resultsBox").val(JSON.stringify(data));
+				},
+           		error:function(data) {
+                   console.log("Uh oh.");
+                   console.log(data);
+                }
+		 });
+		
+	}
+	
+			
+	//Returns list of available workflows
+	function getAvailableInstances(event) {
+		
+			$.ajax({
+				type:'GET',
+				url: aemServerVal + '/etc/workflow/models.json',
+				headers: {
+					"Authorization": "Basic " + btoa(username + ":" + password)
+				},
+				success:function(data){
+					console.log("Woohoo success");
+					console.log(data.toString());
+					
+					
+					$("#resultsBox").val(JSON.stringify(data));
+																
+					//Clear the existing list
+					$('#fullTriggerWorkflowList').empty();
+					
+					var sortedWorkflows = new Array(data.length);
+					
+					//sortedWorkflows.sort();
+					
+					//Parse JSON response and use to populate trigger select menu
+					for ( i=0;  i< data.length; i++) {
+						console.log( "Item " + i + " : " + data[i]['uri']);	
+
+						console.log("Adding option entry");
+						
+						//Create truncated name for display
+						var workflowName = data[i]['uri'].substring(data[i]['uri'].lastIndexOf('/') + 1, data[i]['uri'].length);
+						var workflowURI = data[i]['uri'];
+						
+						
+						//sortedWorkflows = shortenedName + ", " + data[i]['uri'];
+						
+						//var workflowName = shortenedName;
+						//var workflowURI = sortedWorkflows[i].substring(sortedWorkflows[i].indexOf(',')+1, sortedWorkflows[i].length);
+						
+						console.log("Adding display Name: " + workflowName);
+						
+						$('#fullTriggerWorkflowList').append($('<option/>', { 
+							value: workflowURI,
+							text : workflowName 
+						}));
+						
+					}
+				},
+           		error:function(data) {
+                   console.log("Uh oh.");
+                   console.log(data);
+                }
+		 });
+		
+	}
+	
+	
+	//Returns metadata and definition of provided workflow ID (URI)
+	function getWorkflowDetails() {
+		
+			var workflowID = $("#workflowID").val();
+		
+			$.ajax({
+				type:'GET',
+				url: aemServerVal +  workflowID + ".json",
+				headers: {
+					"Authorization": "Basic " + btoa(username + ":" + password)
+				},
+				success:function(data){
+					console.log("Woohoo success");
+					console.log(data.toString());
+					$("#resultsBox").val(JSON.stringify(data));
+				},
+           		error:function(data) {
+                   console.log("Uh oh.");
+                   console.log(data);
+                }
+		 });
+		 	
+	}
+	
+
+	function clearResults(resultsField) {
+		var resultsDiv = $("#" + resultsField);
+		
+		$(resultsDiv).val('');
+	}
+		
+	
+	
+	function doIt(data, action, url){
+		
+		$.ajax({
+				type:action,
+				url:url,
+          		data: data,
+				success:function(data){
+						console.log("Woohoo success");
+                  		console.log(data);
+                  		//alert("Booom. It worked.");
+				},
+           		error:function(data) {
+                   console.log("Uh oh.");
+                   console.log(data);
+                  //alert("No dice.");
+                }
+		 });
+			
+	}
+	
+	
+	function insertSamplePayload() {
+		
+		$("#payloadContentVal").val('<?xml version="1.0" encoding="UTF-8"?><afData><afUnboundData><data><textbox1606975041101>Jason</textbox1606975041101><textbox_15232882731606975077224>Fabbri</textbox_15232882731606975077224><dropdownlist1606975341195>Benton</dropdownlist1606975341195><dropdownlist_5178280001606976862956>123</dropdownlist_5178280001606976862956><datepicker_631445031606977094240>2020-12-03</datepicker_631445031606977094240></data></afUnboundData><afBoundData><data xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/"/></afBoundData><afSubmissionInfo><computedMetaInfo/><stateOverrides/><signers/><afPath>/content/dam/formsanddocuments/oha-water/oha-water-system-survey</afPath><afSubmissionTime>20201203095124</afSubmissionTime></afSubmissionInfo></afData>');
+		
+	}
+	
+	//Get todays date
+	function getDate() {
+		
+		var d = new Date();
+		var theMonth = d.getMonth() + 1;
+		var theDay = d.getDate()
+		
+		if (d.getMonth() < 10)
+			theMonth = "0" + theMonth;
+		
+		if (theDay < 10)
+			theDay = "0" + theDay
+		
+		var dateString = d.getFullYear() + "-" + theMonth + "-" + theDay;
+		
+		$("#payloadDateVal").val(dateString);
+		$("#fullTriggerPayloadDateVal").val(dateString);
+		
+	}
+	
+	//Show sample code
+	function showSampleCode(codeDiv) {
+		
+		var component = "#" + codeDiv;
+		 $(component).toggle();		
+	}
+	
+	
+	//Sites URL Get
+	http://localhost:4502/editor.html/content/state-agency-website/language-masters/en0.html
+		function getSitesUrlJSON() {
+		
+			var sitesUrlValue = $("#sitesURL").val();
+			
+			sitesUrlValue = sitesUrlValue.substring(0, sitesUrlValue.length - 4);
+			
+			sitesUrlValue += "model.json";
+			
+			$("#sitesResultsBox").val("*** Requesting JSON For: " + aemServerVal +  sitesUrlValue + "\n\n"); 
+		
+			$.ajax({
+				type:'GET',
+				url: aemServerVal +  sitesUrlValue,
+				headers: {
+					"Authorization": "Basic " + btoa(username + ":" + password)
+				},
+				success:function(data){
+					console.log("Woohoo success");
+					console.log(data.toString());
+					
+					$("#sitesResultsBox").val($("#sitesResultsBox").val() + JSON.stringify(data));
+				},
+				error:function(data) {
+				   console.log("Uh oh.");
+				   console.log(data);
+				   
+				   $("#sitesResultsBox").val($("#sitesResultsBox").val() + JSON.stringify(data));
+				}
+		 });
+		 	
+	}
+	
+	
+	//Returns list of Assets APIs
+	function getAssetsApiList() {
+			$.ajax({
+				type:'GET',
+				url: aemServerVal + '/api.json',
+				headers: {
+					"Authorization": "Basic " + btoa(username + ":" + password)
+				},
+				success:function(data){
+						console.log("Woohoo success");
+                  		console.log(data.toString());
+                  		$("#assetsResultsBox").val(JSON.stringify(data));
+				},
+           		error:function(data) {
+                   console.log("Uh oh.");
+                   console.log(data);
+                }
+		 });
+		
+	}
+	
+	
+	//Returns APIs from specific API
+	function getSpecificAssetsApi() {
+		
+		var apiRequested = $("#getAssetsApiField").val();
+		
+		if (apiRequested == "")
+			alert("Please provide requested API");		
+		else {
+			$.ajax({
+					type:'GET',
+					url: aemServerVal + apiRequested,
+					headers: {
+						"Authorization": "Basic " + btoa(username + ":" + password)
+					},
+					success:function(data){
+							console.log("Woohoo success");
+							console.log(data.toString());
+							$("#assetsResultsBox").val(JSON.stringify(data));
+					},
+					error:function(data) {
+					   console.log("Uh oh.");
+					   console.log(data);
+					}
+			 });
+		}
+		
+	}
+	
+	//Returns assets from within assets directory
+	function getAssetDirectoryContents() {
+		
+		var assetDirValue = $("#getAssetsDirectoryListField").val();
+		
+		if (assetDirValue == "")
+			alert("Please provide requested asset directory");		
+		else {
+			$.ajax({
+					type:'GET',
+					url: aemServerVal + assetDirValue,
+					headers: {
+						"Authorization": "Basic " + btoa(username + ":" + password)
+					},
+					success:function(data){
+							console.log("Woohoo success");
+							console.log(data.toString());
+							$("#assetsResultsBox").val(JSON.stringify(data));
+					},
+					error:function(data) {
+					   console.log("Uh oh.");
+					   console.log(data);
+					}
+			 });
+		}
+		
+	}
+	
+		//Returns assets from within assets directory
+	function getSpecificAssetsContents() {
+		
+		var assetValue = $("#getSpecificAssetField").val();
+		
+		if (assetValue == "")
+			alert("Please provide requested asset");		
+		else {
+			$.ajax({
+					type:'GET',
+					url: aemServerVal + assetValue,
+					headers: {
+						"Authorization": "Basic " + btoa(username + ":" + password)
+					},
+					success:function(data){							
+						console.log("Woohoo success");
+						console.log(data.toString());
+						$("#assetsResultsBox").val(JSON.stringify(data));
+							
+					},
+					error:function(data) {
+					   console.log("Uh oh.");
+					   console.log(data);
+					}
+			 });
+		}
+		
+	}
+		
+	
+	
+// Returns JSON provided list from list (in Assets tab)
+// Resulting JSON should be parsed and used to populate selection list
+	function getAssetsApiList() {
+		var assetDir = $("#getAssetDirectory").val();
+		
+		//if (assetDir == "")
+		//	alert("Please provide directory path to query");		
+		//else {
+			$.ajax({
+					type:'GET',
+					url: aemServerVal + "/api/assets.json",
+					headers: {
+						"Authorization": "Basic " + btoa(username + ":" + password)
+					},
+					success:function(data){							
+						$("#assetsResultsBox").val("Successful response for GET Asset Directory.\n\n");
+						$("#assetsResultsBox").val($("#assetsResultsBox").val() + JSON.stringify(data) + "\n\n");
+							
+						$("#assetsResultsBox").val($("#assetsResultsBox").val() + "Parsing JSON\n\n");
+						var assetObjs = JSON.parse(JSON.stringify(data));
+		
+						$("#assetsResultsBox").val($("#assetsResultsBox").val() + "Parsed JSON \n\n");
+						
+						//$("#assetsResultsBox").val($("#assetsResultsBox").val() + "Asset Type: " + assetObjs.class[0]);
+						
+						//Clear the existing asset directory list
+						$('#assetDirectorySelectionList').empty();
+						
+						var numAssetDirs = 0;
+							
+						//First run through to see how many directories we have
+						//since you can actually put standalone assets there...
+						for (var i=0; i<assetObjs.entities.length; i++) {
+							if (assetObjs.entities[i].class[0] == "assets/folder") {
+								$("#assetsResultsBox").val($("#assetsResultsBox").val() + "Dir " + i + " " + assetObjs.entities[i].properties.name + "\n\n");
+								numAssetDirs += 1;
+							}
+						}
+						
+						var sortedAssetDirectories = new Array(numAssetDirs);
+						
+						//Parse JSON response and use to populate trigger select menu
+						for ( i=0;  i< sortedAssetDirectories.length; i++) {
+							
+							//Create truncated name for display
+							var directoryName = assetObjs.entities[i].properties.name;
+							var directoryURI = assetObjs.entities[i].links[0].href; 
+							
+							$('#assetDirectorySelectionList').append($('<option/>', { 
+								value: directoryURI,
+								text : directoryName 
+							}));
+							
+						}
+					
+						
+					},
+					error:function(data) {
+					   console.log("Uh oh.");
+					   console.log(data);
+					}
+			 });
+		//}
+		
+	}
+	
+	
+			//Returns assets from within selected asset directory in list
+	function getSelectedAssetDirectoryContents() {
+		
+		$("#assetDirActionDetails").html("");
+		
+		$("#assetDirClassDetails").html("");
+		
+		$("#assetDirEntities").html("");
+		
+		$("#assetDirLinks").html("");
+		
+		$("#assetDirProperties").html("");
+		
+		var selectedAssetDirValue = $("#assetDirectorySelectionList").val();
+	
+			$.ajax({
+					type:'GET',
+					url: selectedAssetDirValue,
+					headers: {
+						"Authorization": "Basic " + btoa(username + ":" + password)
+					},
+					success:function(data){			
+						var assetObjs = JSON.parse(JSON.stringify(data));
+						
+						$("#assetsResultsBox").val($("#assetsResultsBox").val() + JSON.stringify(data) + "\n\n");
+						
+						var actionDetailsHTML = "";
+			
+						//Read Actions....
+						
+						actionDetailsHTML += ("<table width='100%'><th>Title</th><th>Method</th><th>HREF</th><th>Fields/Type</th>");
+						
+						for (var i=0; i<assetObjs.actions.length; i++) {
+							actionDetailsHTML += ("<tr>");
+				
+							//ACTIONS Access
+							actionDetailsHTML += ("<td class='codeAppearance' align='middle'>" + assetObjs.actions[i].title + "</td>");
+							
+							actionDetailsHTML += ("<td class='codeAppearance'  align='middle'>" + assetObjs.actions[i].method + "</td>");
+							
+							actionDetailsHTML += ("<td class='codeAppearance'  align='middle'>" + "<a href='" + assetObjs.actions[i].href + "'>" + assetObjs.actions[i].href.substring(aemServerVal.length, assetObjs.actions[i].href.length) + "</a></td>");
+							
+							//Iterate through size if fields array which may vary
+							if (assetObjs.actions[i].fields != null) {
+								actionDetailsHTML += ("<td class='codeAppearance'  align='middle'>");
+								
+								for (var n=0; n<assetObjs.actions[i].fields.length; n++) {
+									actionDetailsHTML += ("Name: '" + assetObjs.actions[i].fields[n].name + "', Type: '" + assetObjs.actions[i].fields[n].type + "'<br/>" );
+								}
+								
+								actionDetailsHTML += ("</td>");
+									
+							} else if (assetObjs.actions[i].type != null) {
+								actionDetailsHTML += ("<td class='codeAppearance'  align='middle'>" + assetObjs.actions[i].type + "</td>");
+
+							} else {
+								actionDetailsHTML += ("<td class='codeAppearance'  align='middle'>none</td>");
+								
+							}
+								
+							actionDetailsHTML += ("</tr>");
+							
+							actionDetailsHTML += ("<td class='codeAppearance' align='middle' colspan='4'><hr width='100%'></td>");
+							
+						}
+						
+						$("#assetDirActionDetails").append(actionDetailsHTML);
+						
+						//Read Directory Class
+						$("#assetDirClassDetails").append("<table width='100%' class='codeAppearance'><tr><td align='middle'>"+ assetObjs.class[0] + "</td></tr></table>");
+						
+						//Read Entities Content
+						var entityDetailsHTML = "";
+						
+						if (assetObjs.entities != null) {
+							entityDetailsHTML += ("<table><th>Name</th><th>Format</th><th>Class</th>");
+					
+							for (var i=0; i<assetObjs.entities.length; i++) {
+								entityDetailsHTML += ("<tr>");
+								
+								entityDetailsHTML += ("<td style='min-width: 100px !important;' class='codeAppearance'  align='middle'>" + assetObjs.entities[i].properties.name + "</td>");
+								
+								if (assetObjs.entities[i].class[0] != "assets/folder")
+									entityDetailsHTML += ("<td style='min-width: 100px !important;'  class='codeAppearance'  align='middle'>" + assetObjs.entities[i].properties.metadata["dc:format"] + "</td>");
+								else
+									entityDetailsHTML += ("<td style='min-width: 100px !important;'  class='codeAppearance'  align='middle'>" + assetObjs.entities[i].class[0] + "</td>");
+								
+								entityDetailsHTML += ("<td style='min-width: 100px !important;'  class='codeAppearance'  align='middle'>" + assetObjs.entities[i].class[0] + "</td>");
+								
+								entityDetailsHTML += ("<td style='min-width: 100px !important;'  class='codeAppearance'  align='middle'>");
+								
+								entityDetailsHTML += ("</tr>");
+								
+								entityDetailsHTML += ("<tr>");
+								
+								entityDetailsHTML += ("<td colspan='2' style='min-width: 100px !important;'  class='codeAppearance'  align='middle'>");
+								
+								//Save off the "original" link to the image
+								//so we can query for it below
+								var origImageUrl = null;
+								
+								//Use the asset name for uniqueness...
+								var assetPreviewID = assetObjs.entities[i].properties.name;
+								
+								//more than one link so get all of them
+								entityDetailsHTML += "<br/>Entity Links:<br/>";
+								for (var l=0; l<assetObjs.entities[i].links.length; l++) {
+									entityDetailsHTML += "<a href='" + assetObjs.entities[i].links[l].href + "'>" + assetObjs.entities[i].links[l].href + "</a><br/><br/>";
+									
+									if (assetObjs.entities[i].links[l].href.includes("original"))
+										origImageUrl = assetObjs.entities[i].links[l].href;
+								}
+								
+								//Render image from byte array receipt
+								// <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==" alt="Red dot">
+					
+								entityDetailsHTML += ("</td>");
+								
+								//Retrieve the bytes for the image
+								
+								if (origImageUrl != null) {
+									
+									//entityDetailsHTML += "<td colspan='1' style='min-width: 100px !important;' align='middle'><button onclick='getAssetPreview(" + origImageUrl + ", this)'>show preview</button></td>";
+									entityDetailsHTML += "<td colspan='1' style='min-width: 100px !important;' align='middle'><button onclick='getAssetPreview(\"" + origImageUrl + "\", \"" + assetPreviewID + "\")'>show preview</button><br/><br/><img width='120px' id='" + assetPreviewID + "' /></td>";
+
+					
+								
+								} else {
+									entityDetailsHTML += ("<td colspan='1' style='min-width: 100px !important;'  class='codeAppearance'  align='middle'></td>");
+								}
+								
+								
+								
+								entityDetailsHTML += ("</tr>");
+								
+								entityDetailsHTML += ("<td class='codeAppearance' align='middle' colspan='4'><hr width='100%'></td>");
+							}
+							
+							entityDetailsHTML += "</table>"
+							
+						}
+						
+						$("#assetDirEntities").append(entityDetailsHTML);
+							
+							
+						//Directory Links for this directory
+						var assetDirLinkHTML = "";
+						
+						assetDirLinkHTML += ("<table width='100%'><th>HREF</th><th>Rel</th>");
+						
+						for (var theLink=0; theLink<assetObjs.links.length; theLink++) {
+							assetDirLinkHTML += "<tr>";
+							
+							assetDirLinkHTML += "<td class='codeAppearance' align='middle' >" + assetObjs.links[theLink].href + "</td><td class='codeAppearance' align='middle' >" +  assetObjs.links[theLink].rel[0] + "</td>";
+							
+							assetDirLinkHTML += "</tr>"
+						}
+						
+						assetDirLinkHTML += "</table><br/>";
+						
+						$("#assetDirLinks").append(assetDirLinkHTML);
+						
+						// End Links
+						
+						//Directory properties for this directory
+						var assetPropsHTML = "";
+						
+						assetPropsHTML += ("<table width='100%'><th>Key</th><th>Value</th>");
+						
+						//for (var theProp=0; theProp<assetObjs.links.length; theProp++) {
+							assetPropsHTML += "<tr>";
+							
+							assetPropsHTML += "<td class='codeAppearance' align='middle' >Name</td><td class='codeAppearance' align='middle' >" +  assetObjs.properties.name + "</td>";
+							
+							assetPropsHTML += "</tr>"
+						//}
+						
+						assetPropsHTML += "</table><br/>";
+						
+						$("#assetDirProperties").append(assetPropsHTML);
+						
+						
+						
+						// end properties
+							
+
+					
+						
+					},
+					error:function(data) {
+					   console.log("Uh oh.");
+					   console.log(data);
+					}
+			 });
+
+	}
+	
+	
+const base64_arraybuffer = async (data) => {
+    // Use a FileReader to generate a base64 data URI
+    const base64url = await new Promise((r) => {
+        const reader = new FileReader()
+        reader.onload = () => r(reader.result)
+        reader.readAsDataURL(new Blob([data]))
+    })
+
+    /*
+    The result looks like 
+    "data:application/octet-stream;base64,<your base64 data>", 
+    so we split off the beginning:
+    */
+    return base64url.split(",", 2)[1]
+}
+	
+ 
+function makeOutputServiceCall(postURL, xmlData) {
+    try {
+        console.log("xmlData: " + xmlData);
+        var formData = new FormData();
+        // Each of these appends needs to be equal to the name of the input variables in your process (JEE)
+        formData.append("formdata", xmlData);
+        var request = new XMLHttpRequest();
+        request.open("POST", postURL,true);
+        request.responseType = 'blob';
+        request.onload = function(e) {
+            if (this.status == 200) {
+                var a = document.createElement("a");
+    			document.body.appendChild(a);
+    			a.style = "display: none";
+                console.log("Set Request: " + this.responseType + " - END_RESPONSE_TYPE");
+                var blobData = this.response;
+                console.log("BlobData = " + blobData);
+                var blobURL = URL.createObjectURL(blobData);
+                //window.open(blobURL);
+                a.href = blobURL;
+        		a.download = "downloaded-form.pdf";
+        		a.click();
+        		window.URL.revokeObjectURL(blobURL)
+            }
+        };
+        request.send(xmlData);
+    } catch(err) {
+        console.log(err.message);
+    }}
+ 
+
+
+	//Retrieve asset preview
+	function getAssetPreview(imageUrl, previewElement) {
+								
+		$("#assetsResultsBox").val($("#assetsResultsBox").val() + "Retrieving asset preview....\n\n");
+		  
+	 $.ajax({
+		  method: "GET",
+
+		  url: imageUrl,
+		  headers: {
+				"Authorization": "Basic " + btoa(username + ":" + password)
+			},			
+
+		  success: function (result, textStatus, jqXHR) {
+		  	  	
+			var imgPreview = document.getElementById(previewElement);
+			
+			$(imgPreview).attr("src", imageUrl);
+	
+		  },
+		  
+		  error: function(xhr, textStatus, errorThrown){
+			alert("Error in getting document "+textStatus);
+		  }
+		});
+	 
+		/*
+		$.ajax({
+		  type: "GET",
+		  url: imageUrl,
+		  //contentType: "image/png",
+		  headers: {
+				"Authorization": "Basic " + btoa(username + ":" + password)
+			},			
+
+		  success: function (result, textStatus, jqXHR) {
+		  	  
+			if(result.length < 1){
+				alert("The thumbnail doesn't exist");
+				$("#assetimage").attr("src", "data:image/png;base64,");
+				return
+			}
+			
+			var binary = "";
+			
+			var responseText = jqXHR.responseText;
+			
+			var responseTextLen = responseText.length;
+			
+			for ( i = 0; i < responseTextLen; i++ ) {
+				binary += String.fromCharCode(responseText.charCodeAt(i) & 255)
+			}
+			
+			//$("#ca-gov-logo.png").attr("src", "data:image/png;base64," + btoa(binary));
+			
+			var imgPreview = document.getElementById(previewElement);
+			
+			$(imgPreview).attr("src", "data:image/png;base64," + btoa(binary));
+	
+		  
+		  },
+		  
+		  error: function(xhr, textStatus, errorThrown){
+			alert("Error in getting document "+textStatus);
+		  }
+		});
+		*/
+		
+		
+	
+		
+	}
+	
+	
+	
+	
+	
+	$( document ).ready(function() {
+		getDate();
+		getAvailableInstances();
+	});
+	
+	 		
+ </script>
+ 
+   <script>
+  
+  $( function() {
+    $( "#tabs" ).tabs();
+  } );
+  
+  </script>
+ 
+ <title>AEM OSGI REST API Test Bench</title>
+ 
+ </head>
+
+<body>
+
+
+<p>
+<h2>Adobe Experience Manager Forms</h2>
+<h3>OSGI REST API Test Bench <script>document.write(gReleaseVer);</script></h3>
+Utility for testing and validating headless AEM API data results. <br/>
+</p>
+
+<p>
+Target OSGI AEM Server: <input type="text" id="aemServer" value="http://localhost:4502" size="30">&nbsp;<button onclick="setServerVal()">set</button>
+</p>
+
+
+<div id="tabs">
+  <ul>
+    <li><a href="#tabs-1">Workflow (Forms) APIs</a></li>
+    <li><a href="#tabs-2">Sites APIs</a></li>
+    <li><a href="#tabs-3">Assets APIs</a></li>
+  </ul>
+  
+  
+  <div id="tabs-1">
+  
+	  Related documentation:<br/>
+	<ul>
+	<li><a target="_new" href="https://experienceleague.adobe.com/docs/experience-manager-65/developing/extending-aem/extending-workflows/workflows-program-interaction.html?lang=en#examples">Programmatically Working with Workflows</a>
+	</ul>
+
+<table valign='top' cellpadding='2'>
+
+<!--
+<tr>
+<td colspan="2">
+Related documentation:<br/>
+<ul>
+<li><a target="_new" href="https://experienceleague.adobe.com/docs/experience-manager-65/developing/extending-aem/extending-workflows/workflows-program-interaction.html?lang=en#examples">Programmatically Working with Workflows</a>
+</ul>
+</td>
+</tr>
+-->
+
+<!--
+<thead>
+	<tr>
+		<th style="width:200px;">GET API Calls <br/> <hr width="75%"></th>
+		<th>POST API Calls<br/> <hr width="75%"></th>
+	</tr>
+</thead>
+-->	
+
+<tbody>
+
+
+<tr>
+<td valign="top"  width="50%">
+
+<h4 style="text-align: center;">GET API Calls</h4><hr width="75%">
+
+<!-- GET Running Workflow Instances -->
+<p style="background-color: #92a8d1; padding: 6px;">
+<button onclick="getRunningInstances()">GET <strong>Running</strong> Workflow Instances</button>&nbsp;<a href="" onclick="showSampleCode('getRunningInstancesDiv'); return false;">?</a><br/>
+<span style='font-family: "Courier New" '>/etc/workflow/instances.RUNNING.json</span><br/>
+Returns list of running workflow instances by respective URIs (aka IDs).
+<div id="getRunningInstancesDiv" style="background-color: #000; color: #26e715;" hidden>
+<pre>
+  <code>
+//Returns list of running workflow instances
+function getRunningInstances() {
+	$.ajax({
+		type:'GET',
+		url: aemServerVal + '/etc/workflow/instances.RUNNING.json',
+		headers: {
+			"Authorization": "Basic " + btoa(username + ":" + password)
+		},
+		success:function(data){
+				console.log("Woohoo success");
+				console.log(data.toString());
+				$("#resultsBox").val(JSON.stringify(data));
+		},
+		error:function(data) {
+		   console.log("Uh oh.");
+		   console.log(data);
+		}
+	});
+	
+}
+	</code>
+</pre>
+</div>
+</p>
+
+<p style="background-color: #92a8d1; padding: 6px;">
+<button onclick="getSuspendedInstances()">GET <strong>Suspended</strong> Workflow Instances</button>&nbsp;<a href="" onclick="showSampleCode('getSuspendedInstancesDiv'); return false;">?</a><br/>
+<span style='font-family: "Courier New" '>/etc/workflow/instances.SUSPENDED.json</span><br/>
+Returns list of suspended workflow instances by respective URIs (aka IDs).
+<div id="getSuspendedInstancesDiv" style="background-color: #000; color: #26e715;" hidden>
+<pre>
+  <code>
+//Returns list of suspended workflow instances
+function getSuspendedInstances() {
+	$.ajax({
+		type:'GET',
+		url: aemServerVal + '/etc/workflow/instances.SUSPENDED.json',
+		headers: {
+			"Authorization": "Basic " + btoa(username + ":" + password)
+		},
+		success:function(data){
+				console.log("Woohoo success");
+				console.log(data.toString());
+				$("#resultsBox").val(JSON.stringify(data));
+		},
+		error:function(data) {
+		   console.log("Uh oh.");
+		   console.log(data);
+		}
+	 });
+	
+}
+	</code>
+</pre>
+</div>
+</p>
+
+<p style="background-color: #92a8d1; padding: 6px;">
+<button onclick="getAbortedInstances()">GET <strong>Aborted</strong> Workflow Instances</button>&nbsp;<a href="#" onclick="showSampleCode('getAbortedInstancesDiv'); return false;">?</a><br/>
+<span style='font-family: "Courier New" '>/etc/workflow/instances.ABORTED.json</span><br/>
+Returns list of aborted workflow instances by respective URIs (aka IDs).
+<div id="getAbortedInstancesDiv" style="background-color: #000; color: #26e715;" hidden>
+<pre>
+  <code>
+//Returns list of aborted workflow instances
+function getAbortedInstances() {
+	$.ajax({
+		type:'GET',
+		url: aemServerVal + '/etc/workflow/instances.ABORTED.json',
+		headers: {
+			"Authorization": "Basic " + btoa(username + ":" + password)
+		},
+		success:function(data){
+				console.log("Woohoo success");
+				console.log(data.toString());
+				$("#resultsBox").val(JSON.stringify(data));
+		},
+		error:function(data) {
+		   console.log("Uh oh.");
+		   console.log(data);
+		}
+	 });
+	
+}
+	</code>
+</pre>
+</div>
+</p>
+
+<p style="background-color: #92a8d1; padding: 6px;">
+<button onclick="getCompletedInstances()">GET <strong>Completed</strong> Workflow Instances</button>&nbsp;<a href="#" onclick="showSampleCode('getCompletedInstancesDiv'); return false;">?</a><br/>
+<span style='font-family: "Courier New" '>/etc/workflow/instances.COMPLETED.json</span><br/>
+Returns list of completed workflow instances by respective URIs (aka IDs).
+<div id="getCompletedInstancesDiv" style="background-color: #000; color: #26e715;" hidden>
+<pre>
+  <code>
+//Returns list of completed workflow instances
+function getCompletedInstances() {
+	$.ajax({
+		type:'GET',
+		url: aemServerVal + '/etc/workflow/instances.COMPLETED.json',
+		headers: {
+			"Authorization": "Basic " + btoa(username + ":" + password)
+		},
+		success:function(data){
+			console.log("Woohoo success");
+			console.log(data.toString());
+			$("#resultsBox").val(JSON.stringify(data));
+		},
+		error:function(data) {
+		   console.log("Uh oh.");
+		   console.log(data);
+		}
+	 });
+	
+}
+	</code>
+</pre>
+</div>
+</p>
+
+<!-- GET AVailable Workflow Instances -->
+<p style="background-color: #92a8d1; padding: 6px;">
+<button onclick="getAvailableInstances()">GET <strong>Available</strong> Workflows</button>&nbsp;<a href="#" onclick="showSampleCode('getAvailableInstancesDiv'); return false;">?</a><br/>
+<span style='font-family: "Courier New" '>/etc/workflow/models.json</span><br/>
+Returns list of available workflows by respective URIs (aka IDs).
+<div id="getAvailableInstancesDiv" style="background-color: #000; color: #26e715;" hidden>
+<pre>
+  <code>
+//Returns list of available workflows
+function getAvailableInstances() {
+	$.ajax({
+		type:'GET',
+		url: aemServerVal + '/etc/workflow/models.json',
+		headers: {
+			"Authorization": "Basic " + btoa(username + ":" + password)
+		},
+		success:function(data){
+			console.log("Woohoo success");
+			console.log(data.toString());
+			$("#resultsBox").val(JSON.stringify(data));
+		},
+		error:function(data) {
+		   console.log("Uh oh.");
+		   console.log(data);
+		}
+	});
+	
+}
+	</code>
+</pre>
+</div>
+</p>
+
+<!-- GET Workflow Details -->
+<p style="background-color: #92a8d1; padding: 6px;">
+<button onclick="getWorkflowDetails()">GET <strong>Specific</strong> Resource Details</button>&nbsp;<a href="#" onclick="showSampleCode('getWorkflowDetailsDiv'); return false;">?</a><br/>
+<span style='font-family: "Courier New" '>/etc/workflow/instances/{id}.json</span><br/>
+Returns metadata of provided workflow<br/>
+ID (URI):
+<input class="codeAppearance" type="text" id="workflowID" size="40"/>
+<div id="getWorkflowDetailsDiv" style="background-color: #000; color: #26e715;" hidden>
+<pre>
+  <code>
+//Returns metadata and definition of provided workflow ID (URI)
+function getWorkflowDetails() {
+	
+	var workflowID = $("#workflowID").val();
+
+	$.ajax({
+		type:'GET',
+		url: aemServerVal +  workflowID + ".json",
+		headers: {
+			"Authorization": "Basic " + btoa(username + ":" + password)
+		},
+		success:function(data){
+			console.log("Woohoo success");
+			console.log(data.toString());
+			$("#resultsBox").val(JSON.stringify(data));
+		},
+		error:function(data) {
+		   console.log("Uh oh.");
+		   console.log(data);
+		}
+	 });
+	
+}
+	</code>
+</pre>
+</div>
+</p>
+
+<!-- GET CSRF Token -->
+<p style="background-color: #92a8d1; padding: 6px;">
+<button onclick="getCSRFToken()">GET CSRF Token</button>&nbsp;<a href="#" onclick="showSampleCode('getCSRFTokenDiv'); return false;">?</a><br/>
+<span style='font-family: "Courier New" '>/libs/granite/csrf/token.json</span><br/>
+Returns CSRF token required for POST actions.
+<div id="getCSRFTokenDiv" style="background-color: #000; color: #26e715;" hidden>
+<pre>
+  <code>
+//Get the CSRF token
+function getCSRFToken() {
+	$.ajax({
+		type:'GET',
+		url: aemServerVal + '/libs/granite/csrf/token.json',
+		headers: {
+			"Authorization": "Basic " + btoa(username + ":" + password)
+		},
+		success:function(data){
+			console.log("Woohoo success");
+			console.log(data.toString());
+			$("#resultsBox").val(JSON.stringify(data));
+		},
+		error:function(data) {
+		   console.log("Uh oh.");
+		   console.log(data);
+		}
+	 });
+}
+	</code>
+</pre>
+</div>
+</p>
+
+<p style="background-color: #92a8d1; padding: 6px;">
+<b>Results:</b> <button onclick="clearResults('resultsBox')">clear</button><br/>
+<textarea class="codeAppearance" id='resultsBox' cols='60' rows='28'></textarea>
+</p>
+
+</td>
+
+<td valign="top"  width="50%">
+
+<h4 style="text-align: center;">POST API Calls</h4><hr width="75%">
+
+<!-- POST Trigger Full Workflow Instance -->
+<p text-align='center' style="background-color: #92a8d1; padding: 6px;">
+	<button onclick="postInitiateFullWorkflow()">POST <strong>Trigger</strong> Full Workflow Instance</button>&nbsp;<a href="#" onclick="showSampleCode('postInitiateFullWorkflowDiv'); return false;">?</a><br/>
+	<span style='font-family: "Courier New" '>Convenience Method - Not an API - Makes multiple API Calls</span><br/>
+	Leveraging each step below, triggers combination of steps to initiate selected<br/>
+	workflow with specific title and payload provided. Equivalent of submitting an adaptive form to the respective workflow.<br/><br/>
+	
+	CSRF Token:<span style="color: red;">*</span><input class="codeAppearance" type="text" id="fullTriggerWorkflowToken" size="50" /><button onclick="getCSRFToken()">request</button><br/>
+	Workflow:<span style="color: red;">*</span>
+		<select class="codeAppearance" id="fullTriggerWorkflowList" width='40'>
+		</select><button onclick="getAvailableInstances()">get list</button><br/>
+Date:<span style="color: red;">*</span><input class="codeAppearance" type="text" id='fullTriggerPayloadDateVal' size="40" /><br/>
+GUID:<span style="color: red;">*</span><input class="codeAppearance" type="text" id='fullTriggerPayloadGuidVal' size="40" /> <button onclick="getGuid()">generate</button><br/>
+Payload Title:<span style="color: red;">*</span><input class="codeAppearance" type="text" id="fullTriggerPayloadTitleVal" value="data.xml" size="40" /><br/>
+	Workflow Instance Title:<span style="color: red;">*</span> <input class="codeAppearance" type="text" id="fullTriggerTitleVal" size="40" /><br/>
+	Payload:<span style="color: red;">*</span><br/>
+<i>Sample starting payload shown below. Edit to reflect your required value mapping.</i><br/>
+
+<!-- Starter payload XML -->
+<textarea class="codeAppearance" id='fullTriggerPayloadContentVal' cols='85' rows='10'>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<afData>
+  <afUnboundData>
+    <data>
+      <textbox_16516158991518090064653>John Doe</textbox_16516158991518090064653>
+    </data>
+  </afUnboundData>
+  <afBoundData>
+    <data xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/"/>
+  </afBoundData>
+  <afSubmissionInfo>
+    <computedMetaInfo/>
+    <stateOverrides/>
+    <signers/>
+    <afPath>/content/dam/formsanddocuments/simple-assign-form/simple-assign-form</afPath>
+    <afSubmissionTime>20210614082518</afSubmissionTime>
+  </afSubmissionInfo>
+</afData>
+</textarea>
+
+<div id="postInitiateFullWorkflowDiv" style="background-color: #000; color: #26e715;" hidden>
+<pre>
+  <code>
+	// Initiate new workflow instance by
+	// calling a series of APIs sequentially...
+	
+	// 1. POST workflow payload
+	// 2. POST new workflow instance
+	// 3. POST workflow title update 
+	function postInitiateFullWorkflow() {
+		
+		var fullTriggerPayloadName = $("#fullTriggerPayloadTitleVal").val();
+		var fullTriggerPayloadUploadTokenValue = $("#fullTriggerWorkflowToken").val();
+		var fullTriggerPayloadDate = $("#fullTriggerPayloadDateVal").val();
+		var fullTriggerPayloadGuid =  $("#fullTriggerPayloadGuidVal").val();
+		
+		var fullTriggerPayloadContentVal = $("#fullTriggerPayloadContentVal").val();
+		
+		var fullTriggerWorkflowVal = $("#fullTriggerWorkflowList").val();
+		
+		//Create the payload based on XML provided...
+		var fullTriggerPayloadFile = new File([fullTriggerPayloadContentVal], fullTriggerPayloadName, {
+		  type: "text/xml",
+		  //type: "application/octet-stream"
+		});
+		
+		if ( fullTriggerPayloadName == "" || fullTriggerPayloadUploadTokenValue == "" || fullTriggerPayloadDate == ""
+			|| fullTriggerPayloadGuid == "" || fullTriggerPayloadContentVal == "" ) {
+			alert("All fields must be completed for Trigger Full Workflow");
+			return;
+		}
+		
+		var fd = new FormData();
+		fd.append(fullTriggerPayloadName, fullTriggerPayloadFile);
+		
+		// 1. First, POST workflow payload
+		$.ajax({
+		   url: aemServerVal + "/var/fd/dashboard/payload/server0/" + fullTriggerPayloadDate + "/" + fullTriggerPayloadGuid,
+		   type: "POST",
+		   data: fd,
+		   processData: false,  // tell jQuery not to process the data
+		   contentType: false,  // tell jQuery not to set contentType
+           enctype: "multipart/form-data",
+			headers: {
+				//"Content-Type": "application/octet-stream",
+				"Authorization": "Basic " + btoa(username + ":" + password),
+				"CSRF-Token": fullTriggerPayloadUploadTokenValue
+			},
+		   success: function(data) {
+			   console.log("Woohoo! Initiate Full Workflow success");
+			   console.log(data.toString());
+			   
+			   $("#resultsBox").val(">>> Step 1) Payload upload a success. \n");
+			   
+			   $("#resultsBox").val( $("#resultsBox").val() + JSON.stringify(data) + "\n");
+			   
+			   $("#resultsBox").val( $("#resultsBox").val() +  ">>> Proceeding w Step 2) Creating Workflow Instance \n");
+			   
+			   	$.ajax({
+					type:'POST',
+					url: aemServerVal + '/etc/workflow/instances',
+					dataType: 'json',
+					data: {
+						model: fullTriggerWorkflowVal,
+						payloadType: "JCR_PATH",
+						payload: "/var/fd/dashboard/payload/server0/" + fullTriggerPayloadDate + "/" + fullTriggerPayloadGuid + "/" + fullTriggerPayloadName
+					},
+					
+					headers: {
+						"Content-Type": "application/x-www-form-urlencoded",
+						"Authorization": "Basic " + btoa(username + ":" + password),
+						"CSRF-Token": fullTriggerPayloadUploadTokenValue
+					},
+					success:function(data){
+							console.log(">>>>> Step 2) Workflow instance creation success. \n");
+							console.log(data.toString());
+							
+							$("#resultsBox").val( ("#resultsBox").val() + ">>>>> Step 2) Workflow instance creation success. \n");
+							
+							$("#resultsBox").val( ("#resultsBox").val() + JSON.stringify(data) + "\n");
+					},
+					error:function(data) {
+					   console.log("Uh oh.");
+					   console.log(data);
+					 
+					   $("#resultsBox").val( $("#resultsBox").val(" Error Will Robinson!!!! ") + "\n" + JSON.stringify(data));
+					}
+				 });
+			   
+			   
+		   },
+		   error: function(data) {
+                   console.log("Uh oh.");
+                   console.log(data);
+                   $("#resultsBox").val(JSON.stringify(data));
+		   }
+		});
+		
+	}
+	</code>
+</pre>
+</div>
+</p>
+
+
+<p style="background-color: #92a8d1; padding: 6px;">
+<button onclick="postNewInstance()">POST <strong>Create</strong> New Workflow Instance</button>&nbsp;<a href="#" onclick="showSampleCode('postNewInstanceDiv'); return false;">?</a><br/>
+<span style='font-family: "Courier New" '>/etc/workflow/instances</span><br/>
+Initiates a new workflow instance with provided required parameters. <br/>
+CSRF Token: <input class="codeAppearance" type="text" id="tokenVal" size="40" /><br/>
+Model ID (URI): <input class="codeAppearance" type="text" id="modelIDVal" size="40" value="/var/workflow/models/OHAWaterReview"/><br/>
+Payload Type (JCR_PATH or URL): <input class="codeAppearance" type="text" id="payloadTypeVal" size="40" value="JCR_PATH"/><br/>
+Payload Path: <input class="codeAppearance" type="text" id="payloadPathVal" size="40" /><br/>
+<div id="postNewInstanceDiv" style="background-color: #000; color: #26e715;" hidden>
+<pre>
+  <code>
+//Initiate new workflow instance
+function postNewInstance() {
+	
+	var modelIDValue = $("#modelIDVal").val();
+	var payloadPathValue = $("#payloadPathVal").val();
+	var payloadType = $("#payloadTypeVal").val();
+	
+	var tokenValue = $("#tokenVal").val();
+	
+	$.ajax({
+		type:'POST',
+		url: aemServerVal + '/etc/workflow/instances',
+		dataType: 'json',
+		data: {
+			model: modelIDValue,
+			payloadType: payloadType,
+			payload: payloadPathValue
+		},
+		
+		headers: {
+			"Content-Type": "application/x-www-form-urlencoded",
+			"Authorization": "Basic " + btoa(username + ":" + password),
+			"CSRF-Token": tokenValue
+		},
+		success:function(data){
+				console.log("Woohoo success");
+				console.log(data.toString());
+				$("#resultsBox").val(JSON.stringify(data));
+		},
+		error:function(data) {
+		   console.log("Uh oh.");
+		   console.log(data);
+		   $("#resultsBox").val(JSON.stringify(data));
+		}
+	 });
+	
+}
+	</code>
+</pre>
+</div>
+</p>
+
+<p style="background-color: #92a8d1; padding: 6px;">
+<button onclick="setWorkflowTitle()">POST <strong>Set</strong> Workflow Title</button>&nbsp;<a href="#" onclick="showSampleCode('setWorkflowTitleDiv'); return false;">?</a><br/>
+<span style='font-family: "Courier New" '>/etc/workflow/instances/{id}</span><br/>
+Sets the workflow title of a previously created workflow instance.<br/>
+Workflow URI (aka ID): <input class="codeAppearance" type="text" id="workflowURIVal" size="40" /><br/>
+Workflow Title: <input class="codeAppearance" type="text" id="workflowTitleVal" size="40" /><br/>
+CSRF Token: <input class="codeAppearance" type="text" id="UpdateTokenVal" size="40" /><br/>
+
+<div id="setWorkflowTitleDiv" style="background-color: #000; color: #26e715;" hidden>
+<pre>
+  <code>
+//Update/Set the title of a workflow
+function setWorkflowTitle() {
+	var existingWorkflowIDValue = $("#workflowURIVal").val();
+	var workflowNameValue = $("#workflowTitleVal").val();
+	
+	var workflowUpdateTokenValue = $("#UpdateTokenVal").val();
+	
+	var updateURL = aemServerVal + "/etc/workflow/instances" + existingWorkflowIDValue;
+		
+	$.ajax({
+		type:'POST',
+		url: updateURL,
+		dataType: 'json',
+		data: {
+			action: "UPDATE",
+			workflowTitle: workflowNameValue,
+			primaryType: "nt:file"
+		},
+		
+		headers: {
+			"Content-Type": "application/x-www-form-urlencoded",
+			"Authorization": "Basic " + btoa(username + ":" + password),
+			"CSRF-Token": workflowUpdateTokenValue
+		},
+		success:function(data){
+				console.log("Woohoo success");
+				console.log(data.toString());
+				$("#resultsBox").val(JSON.stringify(data));
+		},
+		error:function(data) {
+		   console.log("Uh oh.");
+		   console.log(data);
+		   $("#resultsBox").val(JSON.stringify(data));
+		}
+	 });
+	
+}
+	</code>
+</pre>
+</div>
+
+</p>
+
+
+<p style="background-color: #92a8d1; padding: 6px;">
+	<button onclick="resumeWorkflow()">POST <strong>Resume</strong> Stalled Workflow</button>&nbsp;<a href="#" onclick="showSampleCode('resumeWorkflowDiv'); return false;">?</a><br/>
+	<span style='font-family: "Courier New" '>/etc/workflow/instances/{id}</span><br/>
+	Restarts a previously paused or failed workflow instance.<br/>
+	Workflow URI (aka ID): <input class="codeAppearance" type="text" id="workflowToResumeVal" size="40" /><br/>
+	CSRF Token: <input class="codeAppearance" type="text" id="UpdateTokenVal" size="40" /><br/>
+	
+	<div id="resumeWorkflowDiv" style="background-color: #000; color: #26e715;" hidden>
+	<pre>
+	  <code>
+	//Resume a previously failed workflow
+	function resumeWorkflow() {
+		var stalledWorkflowIDValue = $("#workflowToResumeVal").val();
+		
+		var workflowUpdateTokenValue = $("#UpdateTokenVal").val();
+		
+		var resumeURL = aemServerVal + "/etc/workflow/instances" + stalledWorkflowIDValue;
+			
+		$.ajax({
+			type:'POST',
+			url: resumeURL,
+			dataType: 'json',
+			data: {
+				action: "RESUME",
+			},
+			
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+				"Authorization": "Basic " + btoa(username + ":" + password),
+				"CSRF-Token": workflowUpdateTokenValue
+			},
+			success:function(data){
+					console.log("Woohoo success");
+					console.log(data.toString());
+					$("#resultsBox").val(JSON.stringify(data));
+			},
+			error:function(data) {
+			   console.log("Uh oh.");
+			   console.log(data);
+			   $("#resultsBox").val(JSON.stringify(data));
+			}
+		 });
+		
+	}
+		</code>
+	</pre>
+	</div>
+	
+	</p>
+
+<p style="background-color: #92a8d1; padding: 6px;">
+<button onclick="postPayloadFile()">POST <strong>Upload</strong> Workflow Payload File</button>&nbsp;<a href="#" onclick="showSampleCode('postPayloadFileDiv'); return false;">?</a><br/>
+<span style='font-family: "Courier New" '>/var/fd/dashboard/payload/server0/{date}/{guid}</span><br/>
+Uploads an XML file representing content for a workflow.<br/>
+Date: <input class="codeAppearance" type="text" id='payloadDateVal' size="40" /><br/>
+GUID: <input class="codeAppearance" type="text" id='payloadGuidVal' size="40" /> <button onclick="getGuid()">generate</button><br/>
+Payload File Title: <input class="codeAppearance" type="text" id='payloadFileTitleVal' size="40" value="testFile.xml" /><br/>
+<!-- Payload File: <input type="file" id='payloadFileVal' size="40" /><br/> -->
+CSRF Token: <input class="codeAppearance" type="text" id="payloadUploadTokenVal" size="40" /><br/>
+Payload (content for workflow as normally provided by form): <br/>
+<i>Sample starting payload shown below. Edit to reflect your required value mapping.</i><br/>
+<textarea class="codeAppearance" id='payloadContentVal' cols='85' rows='10'>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<afData>
+  <afUnboundData>
+    <data>
+      <textbox_16516158991518090064653>John Doe</textbox_16516158991518090064653>
+    </data>
+  </afUnboundData>
+  <afBoundData>
+    <data xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/"/>
+  </afBoundData>
+  <afSubmissionInfo>
+    <computedMetaInfo/>
+    <stateOverrides/>
+    <signers/>
+    <afPath>/content/dam/formsanddocuments/simple-assign-form/simple-assign-form</afPath>
+    <afSubmissionTime>20210614082518</afSubmissionTime>
+  </afSubmissionInfo>
+</afData>
+</textarea>
+
+<div id="postPayloadFileDiv" style="background-color: #000; color: #26e715;" hidden>
+<pre>
+  <code>
+// POST payload XML file into the JCR
+function postPayloadFile() {
+		
+	var payloadName = $("#payloadFileTitleVal").val();
+	var payloadUploadTokenValue = $("#payloadUploadTokenVal").val();
+	var payloadDate = $("#payloadDateVal").val();
+	var payloadGuid =  $("#payloadGuidVal").val();
+	
+	//Create a file object containing the provided XML and name
+	var payloadFile = new File([$("#payloadContentVal").val()], payloadName, {
+	  type: "text/xml",
+	});
+	
+	var fd = new FormData();
+	fd.append(payloadName, payloadFile);
+	
+	$.ajax({
+	   url: aemServerVal + "/var/fd/dashboard/payload/server0/" + payloadDate + "/" + payloadGuid,
+	   type: "POST",
+	   data: fd,
+	   processData: false, 
+	   contentType: false,
+		enctype: "multipart/form-data",
+		headers: {
+			"Authorization": "Basic " + btoa(username + ":" + password),
+			"CSRF-Token": payloadUploadTokenValue
+		},
+	   success: function(data) {
+		   console.log("Woohoo success");
+			console.log(data.toString());
+			$("#resultsBox").val(JSON.stringify(data));
+	   },
+	   error: function(data) {
+		   console.log("Uh oh.");
+		   console.log(data);
+		   $("#resultsBox").val(JSON.stringify(data));
+	   }
+	});
+}  
+	</code>
+</pre>
+</div>
+
+
+</p>
+
+</td>
+</tr>
+
+</tbody>
+
+</table>
+
+</div>
+
+<!-- Sites Tab Content -->
+<div id="tabs-2">
+   Related documentation:<br/>
+	<ul>
+	<li><a target="_new" href="https://experienceleague.adobe.com/docs/experience-manager-65/developing/components/pageinfo.html?lang=en#page-information-providers">Obtaining Page Information in JSON Format</a>
+	<li><a target="_new" href="https://experienceleague.adobe.com/docs/experience-manager-learn/getting-started-with-aem-headless/graphql/overview.html?lang=en#graphql">Getting Started with AEM Headless - GraphQL</a>
+	</ul>
+	
+	<table valign='top' cellpadding='2' width="100%">
+	<thead>
+		<tr>
+			<th style="width:200px;">GET API Calls <br/> <hr width="75%"></th>
+		</tr>
+	</thead>
+		
+	<tbody>
+	<tr>
+	
+	<td valign="top" width="100%">
+	
+		<p style="background-color: #92a8d1; padding: 6px;">
+		<button onclick="getSitesUrlJSON()">GET <strong>Specific</strong> URL JSON</button>&nbsp;<a href="#" onclick="showSampleCode('getSitesJURLJSONDiv'); return false;">?</a><br/>
+		<span style='font-family: "Courier New" '>/[url].model.json</span><br/>
+		Returns JSON formatted content from provided complete URL.<br/>
+		URL:
+		<span style='font-family: "Courier New" '><script>document.write(aemServerVal);</script></span><input class='codeAppearance' type="text" id="sitesURL" size="70"/>
+		<div id="getSitesJURLJSONDiv" style="background-color: #000; color: #26e715;" hidden>
+		<pre>
+		  <code>
+		//Returns metadata and definition of provided workflow ID (URI)
+		function getSitesUrlJSON() {
+			
+			var workflowID = $("#workflowID").val();
+		
+			$.ajax({
+				type:'GET',
+				url: aemServerVal +  workflowID + ".json",
+				headers: {
+					"Authorization": "Basic " + btoa(username + ":" + password)
+				},
+				success:function(data){
+					console.log("Woohoo success");
+					console.log(data.toString());
+					$("#resultsBox").val(JSON.stringify(data));
+				},
+				error:function(data) {
+				   console.log("Uh oh.");
+				   console.log(data);
+				}
+			 });
+			
+		}
+			</code>
+		</pre>
+		</div>
+		</p>
+		
+		
+		
+		<p style="background-color: #92a8d1; padding: 6px;">
+		<b>Results:</b> <button onclick="clearSitesResults()">clear</button><br/>
+		<textarea class='codeAppearance' id='sitesResultsBox' cols='90' rows='28'></textarea>
+		</p>
+	
+	
+	</td>
+	</tr>
+	</tbody>
+	</table>
+	
+</div>
+
+<!-- End Sites Content -->
+
+<!-- Assets Tab Content -->
+<div id="tabs-3">
+   Related documentation:<br/>
+	<ul>
+	<li><a target="_new" href="https://experienceleague.adobe.com/docs/experience-manager-65/assets/extending/mac-api-assets.html?lang=en#overview">AEM Assets HTTP API</a>
+	<li><a target="_new" href="https://experienceleague.adobe.com/docs/experience-manager-65/assets/extending/assets-api-content-fragments.html?lang=en#overview">Content Fragments Support in AEM Assets HTTP API</a>
+	</li>
+	<br/>
+	
+	<table valign='top' cellpadding='2' width="100%">
+	<thead>
+		<tr>
+			<th style="width:200px;">GET API Calls <br/> <hr width="75%"></th>
+			<th>Render Example Calls<br/> <hr width="75%"></th>
+		</tr>
+	</thead>
+		
+	<tbody>
+	<tr>
+	
+	<!-- Assets GET APIs -->
+	<td valign="top" width="50%">
+	
+		<!-- GET top level Assets API List -->
+		<p style="background-color: #92a8d1; padding: 6px;">
+		<button onclick="getAssetsApiList()">GET <strong>Full  API List</strong></button>&nbsp;<a href="" onclick="showSampleCode('getAssetsApiListDiv'); return false;">?</a><br/>
+		<span style='font-family: "Courier New" '>/api.json</span><br/>
+		Returns all top level API URLs available for access.
+		<div id="getAssetsApiListDiv" style="background-color: #000; color: #26e715;" hidden>
+		<pre>
+		  <code>
+//Returns list of Assets APIs
+function getAssetsApiList() {
+	$.ajax({
+		type:'GET',
+		url: aemServerVal + '/api.json',
+		headers: {
+			"Authorization": "Basic " + btoa(username + ":" + password)
+		},
+		success:function(data){
+				console.log("Woohoo success");
+				console.log(data.toString());
+				$("#assetsResultsBox").val(JSON.stringify(data));
+		},
+		error:function(data) {
+		   console.log("Uh oh.");
+		   console.log(data);
+		}
+	});
+	
+}
+			</code>
+		</pre>
+		</div>
+		</p>
+		
+		<!-- GET Specific API List Resources-->
+		<p style="background-color: #92a8d1; padding: 6px;">
+		<button onclick="getSpecificAssetsApi()">GET <strong>Specific API List</strong></button>&nbsp;<a href="" onclick="showSampleCode('getSpecificsAssetsApiListDiv'); return false;">?</a><br/>
+		<span style='font-family: "Courier New" '>/api/[assets | screens | screens-dcc | content].json</span><br/>
+		Returns child API URLs available for designated API requested.<br/>
+		Specific API URI: <input class='codeAppearance' type="text" id="getAssetsApiField" size="40"/>
+		<div id="getSpecificsAssetsApiListDiv" style="background-color: #000; color: #26e715;" hidden>
+		<pre>
+		  <code>
+//Returns API list from specific API
+function getSpecificAssetsApi() {
+	
+	var apiRequested = $("#getAssetsApiField").val();
+	
+	if (apiRequested == "")
+		alert("Please provide requested API");		
+	else {
+		$.ajax({
+				type:'GET',
+				url: aemServerVal + apiRequested,
+				headers: {
+					"Authorization": "Basic " + btoa(username + ":" + password)
+				},
+				success:function(data){
+						console.log("Woohoo success");
+						console.log(data.toString());
+						$("#assetsResultsBox").val(JSON.stringify(data));
+				},
+				error:function(data) {
+				   console.log("Uh oh.");
+				   console.log(data);
+				}
+		 });
+	}
+	
+}
+			</code>
+		</pre>
+		</div>
+		</p>
+		
+				<!-- GET Asset Directory Contents -->
+		<p style="background-color: #92a8d1; padding: 6px;">
+		<button onclick="getAssetDirectoryContents()">GET <strong>Specific Asset Directory List</strong></button>&nbsp;<a href="" onclick="showSampleCode('getAssetDirectoryListDiv'); return false;">?</a><br/>
+		<span style='font-family: "Courier New" '>/api/assets/[DirectoryName].json</span><br/>
+		Returns contents URLs and metadata for designated API.<br/>
+		Specific API URI: <input class='codeAppearance' type="text" id="getAssetsDirectoryListField" size="40"/>
+		<div id="getAssetDirectoryListDiv" style="background-color: #000; color: #26e715;" hidden>
+		<pre>
+		  <code>
+//Returns assets from within assets directory
+function getAssetDirectoryContents() {
+	
+	var assetDirValue = $("#getAssetsDirectoryListField").val();
+	
+	if (assetDirValue == "")
+		alert("Please provide requested asset directory");		
+	else {
+		$.ajax({
+				type:'GET',
+				url: aemServerVal + apiRequested,
+				headers: {
+					"Authorization": "Basic " + btoa(username + ":" + password)
+				},
+				success:function(data){
+						console.log("Woohoo success");
+						console.log(data.toString());
+						$("#assetsResultsBox").val(JSON.stringify(data));
+				},
+				error:function(data) {
+				   console.log("Uh oh.");
+				   console.log(data);
+				}
+		 });
+	}
+	
+}
+			</code>
+		</pre>
+		</div>
+		</p>
+		
+		<!-- GET Specific Asset -->
+		<p style="background-color: #92a8d1; padding: 6px;">
+		<button onclick="getSpecificAssetsContents()">GET <strong>Specific Asset Contents</strong></button>&nbsp;<a href="" onclick="showSampleCode('getAssetDirectoryListDiv'); return false;">?</a><br/>
+		<span style='font-family: "Courier New" '>/api/assets/[DirectoryName].json</span><br/>
+		Returns contents URLs and metadata for designated API.<br/>
+		Specific Asset URI: <input class='codeAppearance' type="text" id="getSpecificAssetField" size="40"/>
+		<div id="getAssetDirectoryListDiv" style="background-color: #000; color: #26e715;" hidden>
+		<pre>
+		  <code>
+//Returns assets from within assets directory
+function getAssetDirectoryContents() {
+	
+	var assetDirValue = $("#getAssetsDirectoryListField").val();
+	
+	if (assetDirValue == "")
+		alert("Please provide requested asset directory");		
+	else {
+		$.ajax({
+				type:'GET',
+				url: aemServerVal + apiRequested,
+				headers: {
+					"Authorization": "Basic " + btoa(username + ":" + password)
+				},
+				success:function(data){
+						console.log("Woohoo success");
+						console.log(data.toString());
+						$("#assetsResultsBox").val(JSON.stringify(data));
+				},
+				error:function(data) {
+				   console.log("Uh oh.");
+				   console.log(data);
+				}
+		 });
+	}
+	
+}
+			</code>
+		</pre>
+		</div>
+		</p>
+		
+		<!-- Assets Tab Results -->
+		<p style="background-color: #92a8d1; padding: 6px;">
+		<b>Results:</b> <button onclick="clearResults('assetsResultsBox');">clear</button><br/>
+			<textarea class='codeAppearance' id='assetsResultsBox' cols='60' rows='28'></textarea>
+		</p>
+	
+	</td>
+	<!--  End Assets GET -->
+	
+	
+	<!-- Assets POST APIs -->
+	<td valign="top" width="50%">
+	
+	
+			<!-- Rendering Examples -->
+		<div style="background-color: #92a8d1; padding: 6px;">
+		<button onclick="getAssetsApiList()">GET <strong>Asset Directory List</strong></button>&nbsp;<a href="" onclick="showSampleCode('renderAsset'); return false;">?</a><br/>
+		<span style='font-family: "Courier New" '>Convenience Method - Not an API - Makes multiple API Calls</span><br/>
+		List metadata and render asset(s) from specific assset directory.<br/><br/>
+		
+		
+		<!-- Asset Directory: <input type="text" id="getAssetDirectory" size="40"/><br/> -->
+		
+		Asset Directories:
+		<select class="assetList" id="assetDirectorySelectionList" width='40'>
+		</select><button onclick="getSelectedAssetDirectoryContents()">Get Details</button><br/>
+		
+		<br/>
+
+		<div>
+			
+			Directory Actions:<br/>
+				<div id='assetDirActionDetails'></div>
+				<!--
+				<table width="100%" id='assetDirActionTable'>
+			
+				<th>Title</th> <th>Method</th> <th>HREF</th> <th>Fields</th>
+				<tr>
+				<td id='testTitle' class="codeAppearance" align="middle"></td> <td id='testMethod' class="codeAppearance"  align="middle"></td> <td id='testHref' class="codeAppearance"  align="middle"></td> <td id='testFields' class="codeAppearance"  align="middle"></td>
+				</tr>
+				
+				</table>
+				-->
+			<br/>
+			
+			Directory Class:
+			<br/>
+			<div id='assetDirClassDetails'></div>
+			<br/>
+			
+			Directory Entities:
+			<br/>
+			<div id='assetDirEntities'></div>
+			
+			Directory Links:
+			<br/>
+			<div id='assetDirLinks'></div>
+			
+			Directory Properties:
+			<div id='assetDirProperties'></div>
+			<br/>
+		</div>
+	
+			
+		</div>
+		
+		<div id="renderAsset" style="background-color: #000; color: #26e715;" hidden>
+		<pre>
+		  <code>
+//Returns list of Assets APIs
+function getAssetsApiList() {
+	$.ajax({
+		type:'GET',
+		url: aemServerVal + '/api.json',
+		headers: {
+			"Authorization": "Basic " + btoa(username + ":" + password)
+		},
+		success:function(data){
+				console.log("Woohoo success");
+				console.log(data.toString());
+				$("#assetsResultsBox").val(JSON.stringify(data));
+		},
+		error:function(data) {
+		   console.log("Uh oh.");
+		   console.log(data);
+		}
+	});
+	
+}
+			</code>
+		</pre>
+			
+		</div>
+
+		</p>
+	
+	</td>
+	<!-- End Assets POST APIs -->
+	
+	</tr>
+	</tbody>
+	</table
+	
+</div>
+
+
+</body>
+</html>

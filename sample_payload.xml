@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<afData>
+  <afUnboundData>
+    <data>
+      <textbox_16516158991518090064653>John Doe</textbox_16516158991518090064653>
+    </data>
+  </afUnboundData>
+  <afBoundData>
+    <data xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/"/>
+  </afBoundData>
+  <afSubmissionInfo>
+    <computedMetaInfo/>
+    <stateOverrides/>
+    <signers/>
+    <afPath>/content/dam/formsanddocuments/simple-assign-form/simple-assign-form</afPath>
+    <afSubmissionTime>20210614082518</afSubmissionTime>
+  </afSubmissionInfo>
+</afData>
