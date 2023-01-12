@@ -34,14 +34,13 @@
 .codeAppearance {
 	font-family: "Courier New", Courier, "Lucida Sans Typewriter", "​Lucida Typewriter", monospace !important; 
 	font-size: 13px !important;
-	
 }
 </style>
 
  <script>
  
  	//Global version
- 	var gReleaseVer = "v2.1";
+ 	var gReleaseVer = "v2.5";
  
  	/**
  	 *  NOTE:
@@ -57,7 +56,7 @@
 	
 	function setServerVal() {
 			aemServerVal = $("#aemServer").val();
-			$("#resultsBox").val("Set AEM server endpoint to" + aemServerVal);
+			$("#resultsBox").val("Set AEM server endpoint to " + aemServerVal);
 	}
  
  	function postIt() {
@@ -268,6 +267,78 @@
                 }
 		 });
 		
+	}
+
+	// Get entered credentials
+	function getUserCredentials() {
+		var userName = $("#aemUserID").val();
+		var userPW = $("#aemUserPassword").val();
+
+		return userName + ":" + userPW;
+	}
+
+	// Via Document Services Forms Output
+	// Uploads XDP and XML to merge and return
+	// a populated PDF file
+	//
+	// 1. Create file object based on provided XML
+	// 2. User selects XDP template
+	// 3. Upload both
+	// 4. Response from server w created PDF
+	//
+	function postGeneratePDF() {
+		console.log("Called postGeneratePDF...");
+
+		var outputPDFPayloadContentVal = $("#pdfOutputPayloadContentVal").val();
+
+		var pdfTemplateFile = $("#myTemplateFile").val();
+
+		//Create the data xml based on XML provided...
+		var outputDataXML = new File([outputPDFPayloadContentVal], "sample_data.xml", {
+		  //type: "text/xml",
+		  type: "application/octet-stream"
+		});
+
+		var pdfFormData = new FormData();
+
+		pdfFormData.append(pdfTemplateFile, outputDataXML);
+
+		var testCredentials = getUserCredentials();
+
+		//Now send it all on it's way to AEM...
+		$.ajax({
+		   url: aemServerVal + "/content/AemFormsSamples/outputservice.html",
+		   type: "POST",
+		   data: pdfFormData,
+		   processData: false,  // tell jQuery not to process the data
+		   contentType: false,  // tell jQuery not to set contentType
+           encType: "multipart/form-data",
+
+           //contentType: "application/octet-stream",
+           //contentType: "multipart/form-data",
+
+		   //NOTE: No CSRF token required here...
+			headers: {
+				//"Content-Type": "application/octet-stream",
+				//"Authorization": "Basic " + btoa(username + ":" + password)
+				"Authorization": "Basic " + btoa(testCredentials)
+			},
+			
+			success: function(data) {
+				console.log("PDF Output success: " +  data);
+			},
+
+			//Note creation of workflow returns a 201 (which is success) but JQuery thinks anything other than 200 is an error...
+			error:function(data) {
+				console.log("Uh oh. PDF Output error.");
+				console.log(data);
+				$("#resultsBox").val($("#resultsBox").val() + JSON.stringify(data));
+			}
+		});
+
+
+
+
 	}
 	
 	// Initiate new workflow instance by
@@ -567,9 +638,37 @@
 					"Authorization": "Basic " + btoa(username + ":" + password)
 				},
 				success:function(data){
-						console.log("Woohoo success");
+						console.log("Woohoo success retrieving running workflows");
                   		console.log(data.toString());
                   		$("#resultsBox").val(JSON.stringify(data));
+						
+						//$("#runningWorkflowList").val(JSON.stringify(data));
+
+						//Parse JSON response and use to populate trigger select menu
+						for ( i=0;  i< data.length; i++) {
+							console.log( "Item " + i + " : " + data[i]['uri']);	
+
+							console.log("Adding option entry");
+							
+							//Create truncated name for display
+							var pendingWorkflowName = data[i]['uri'].substring(data[i]['uri'].lastIndexOf('/') + 1, data[i]['uri'].length);
+							var pendingWorkflowURI = data[i]['uri'];
+							
+							
+							//sortedWorkflows = shortenedName + ", " + data[i]['uri'];
+							
+							//var workflowName = shortenedName;
+							//var workflowURI = sortedWorkflows[i].substring(sortedWorkflows[i].indexOf(',')+1, sortedWorkflows[i].length);
+							
+							console.log("Adding display Name: " + pendingWorkflowName);
+							
+							$('#runningWorkflowList').append($('<option/>', { 
+								value: pendingWorkflowURI,
+								text : pendingWorkflowName 
+							}));
+							
+						}
+
 				},
            		error:function(data) {
                    console.log("Uh oh.");
@@ -706,7 +805,7 @@
 	function getWorkflowDetails() {
 		
 			var workflowID = $("#workflowID").val();
-		
+
 			$.ajax({
 				type:'GET',
 				url: aemServerVal +  workflowID + ".json",
@@ -716,7 +815,7 @@
 				success:function(data){
 					console.log("Woohoo success");
 					console.log(data.toString());
-					$("#resultsBox").val(JSON.stringify(data));
+					$("#resultsBox").val("URL: " + aemServerVal +  workflowID + ".json\n\r" + JSON.stringify(data));
 				},
            		error:function(data) {
                    console.log("Uh oh.");
@@ -1355,18 +1454,21 @@ Utility for testing and validating headless AEM API data results. <br/>
 </p>
 
 <p>
-Target OSGI AEM Server: <input type="text" id="aemServer" value="http://localhost:4502" size="30">&nbsp;<button onclick="setServerVal()">set</button>
+<strong>Target OSGI AEM Server:</strong> <input type="text" id="aemServer" value="http://localhost:4502" size="30">&nbsp;<button onclick="setServerVal()">set</button><br/>
+<strong>User Name:</strong> <input type="text" id="aemUserID" value="admin" size="30"><br/>
+<strong>User Password:</strong> <input type="password" id="aemUserPassword" value="admin" size="30"><br/>
 </p>
 
 
 <div id="tabs">
   <ul>
-    <li><a href="#tabs-1">Workflow (Forms) APIs</a></li>
-    <li><a href="#tabs-2">Sites APIs</a></li>
-    <li><a href="#tabs-3">Assets APIs</a></li>
+    <li><a href="#tabs-1">Forms (Workflow) APIs</a></li>
+	<li><a href="#tabs-2">Forms (Output) APIs</a></li>
+    <li><a href="#tabs-3">Sites APIs</a></li>
+    <li><a href="#tabs-4">Assets APIs</a></li>
   </ul>
   
-  
+  <!-- Tab 1 Forms Workflow-->
   <div id="tabs-1">
   
 	  Related documentation:<br/>
@@ -1374,674 +1476,803 @@ Target OSGI AEM Server: <input type="text" id="aemServer" value="http://localhos
 	<li><a target="_new" href="https://experienceleague.adobe.com/docs/experience-manager-65/developing/extending-aem/extending-workflows/workflows-program-interaction.html?lang=en#examples">Programmatically Working with Workflows</a>
 	</ul>
 
-<table valign='top' cellpadding='2'>
+	<table valign='top' cellpadding='2'>
 
-<!--
-<tr>
-<td colspan="2">
-Related documentation:<br/>
-<ul>
-<li><a target="_new" href="https://experienceleague.adobe.com/docs/experience-manager-65/developing/extending-aem/extending-workflows/workflows-program-interaction.html?lang=en#examples">Programmatically Working with Workflows</a>
-</ul>
-</td>
-</tr>
--->
+		<tbody>
 
-<!--
-<thead>
-	<tr>
-		<th style="width:200px;">GET API Calls <br/> <hr width="75%"></th>
-		<th>POST API Calls<br/> <hr width="75%"></th>
-	</tr>
-</thead>
--->	
+			<tr>
+			<td valign="top"  width="50%">
 
-<tbody>
+				<h4 style="text-align: center;">GET API Calls</h4><hr width="75%">
+
+				<!-- GET Running Workflow Instances -->
+				<p style="background-color: #92a8d1; padding: 6px;">
+				<button onclick="getRunningInstances()">GET <strong>Running</strong> Workflow Instances</button>&nbsp;<a href="" onclick="showSampleCode('getRunningInstancesDiv'); return false;">?</a><br/>
+				<span style='font-family: "Courier New" '>/etc/workflow/instances.RUNNING.json</span><br/>
+				Returns list of running workflow instances by respective URIs (aka IDs).
+				<div id="getRunningInstancesDiv" style="background-color: #000; color: #26e715;" hidden>
+				<pre>
+				<code>
+				//Returns list of running workflow instances
+				function getRunningInstances() {
+					$.ajax({
+						type:'GET',
+						url: aemServerVal + '/etc/workflow/instances.RUNNING.json',
+						headers: {
+							"Authorization": "Basic " + btoa(username + ":" + password)
+						},
+						success:function(data){
+								console.log("Woohoo success");
+								console.log(data.toString());
+								$("#resultsBox").val(JSON.stringify(data));
+						},
+						error:function(data) {
+						console.log("Uh oh.");
+						console.log(data);
+						}
+					});
+					
+				}
+					</code>
+				</pre>
+				</div>
+				</p>
+
+					<!-- GET Running Workflow Instance Details -->
+					<p style="background-color: #92a8d1; padding: 6px;">
+						<button onclick="getRunningInstances()">GET <strong>Running</strong> Workflow Details</button>&nbsp;<a href="" onclick="showSampleCode('getRunningInstancesDiv'); return false;">?</a><br/>
+						<span style='font-family: "Courier New" '>Convenience Method - Not an API - Makes multiple API Calls</span><br/>
+						Returns details of pending workflow based on selection below.<br/>
+						<br/>
+						Pending Workflow:
+						<select class="codeAppearance" id="runningWorkflowList" width='40'>
+						</select> <button onclick="getRunningInstances()">refresh list</button><br/>
+
+						<div id="getRunningInstancesDiv" style="background-color: #000; color: #26e715;" hidden>
+						<pre>
+						<code>
+						//Returns list of running workflow instances
+						function getRunningInstances() {
+							$.ajax({
+								type:'GET',
+								url: aemServerVal + '/etc/workflow/instances.RUNNING.json',
+								headers: {
+									"Authorization": "Basic " + btoa(username + ":" + password)
+								},
+								success:function(data){
+										console.log("Woohoo success");
+										console.log(data.toString());
+										$("#resultsBox").val(JSON.stringify(data));
+								},
+								error:function(data) {
+								console.log("Uh oh.");
+								console.log(data);
+								}
+							});
+							
+						}
+							</code>
+						</pre>
+						</div>
+						</p>
+
+				<!-- GET Suspected Workflow Instances-->
+				<p style="background-color: #92a8d1; padding: 6px;">
+				<button onclick="getSuspendedInstances()">GET <strong>Suspended</strong> Workflow Instances</button>&nbsp;<a href="" onclick="showSampleCode('getSuspendedInstancesDiv'); return false;">?</a><br/>
+				<span style='font-family: "Courier New" '>/etc/workflow/instances.SUSPENDED.json</span><br/>
+				Returns list of suspended workflow instances by respective URIs (aka IDs).
+				<div id="getSuspendedInstancesDiv" style="background-color: #000; color: #26e715;" hidden>
+				<pre>
+				<code>
+				//Returns list of suspended workflow instances
+				function getSuspendedInstances() {
+					$.ajax({
+						type:'GET',
+						url: aemServerVal + '/etc/workflow/instances.SUSPENDED.json',
+						headers: {
+							"Authorization": "Basic " + btoa(username + ":" + password)
+						},
+						success:function(data){
+								console.log("Woohoo success");
+								console.log(data.toString());
+								$("#resultsBox").val(JSON.stringify(data));
+						},
+						error:function(data) {
+						console.log("Uh oh.");
+						console.log(data);
+						}
+					});
+					
+				}
+					</code>
+				</pre>
+				</div>
+				</p>
+
+				<p style="background-color: #92a8d1; padding: 6px;">
+				<button onclick="getAbortedInstances()">GET <strong>Aborted</strong> Workflow Instances</button>&nbsp;<a href="#" onclick="showSampleCode('getAbortedInstancesDiv'); return false;">?</a><br/>
+				<span style='font-family: "Courier New" '>/etc/workflow/instances.ABORTED.json</span><br/>
+				Returns list of aborted workflow instances by respective URIs (aka IDs).
+				<div id="getAbortedInstancesDiv" style="background-color: #000; color: #26e715;" hidden>
+				<pre>
+				<code>
+				//Returns list of aborted workflow instances
+				function getAbortedInstances() {
+					$.ajax({
+						type:'GET',
+						url: aemServerVal + '/etc/workflow/instances.ABORTED.json',
+						headers: {
+							"Authorization": "Basic " + btoa(username + ":" + password)
+						},
+						success:function(data){
+								console.log("Woohoo success");
+								console.log(data.toString());
+								$("#resultsBox").val(JSON.stringify(data));
+						},
+						error:function(data) {
+						console.log("Uh oh.");
+						console.log(data);
+						}
+					});
+					
+				}
+					</code>
+				</pre>
+				</div>
+				</p>
+
+				<p style="background-color: #92a8d1; padding: 6px;">
+				<button onclick="getCompletedInstances()">GET <strong>Completed</strong> Workflow Instances</button>&nbsp;<a href="#" onclick="showSampleCode('getCompletedInstancesDiv'); return false;">?</a><br/>
+				<span style='font-family: "Courier New" '>/etc/workflow/instances.COMPLETED.json</span><br/>
+				Returns list of completed workflow instances by respective URIs (aka IDs).
+				<div id="getCompletedInstancesDiv" style="background-color: #000; color: #26e715;" hidden>
+				<pre>
+				<code>
+				//Returns list of completed workflow instances
+				function getCompletedInstances() {
+					$.ajax({
+						type:'GET',
+						url: aemServerVal + '/etc/workflow/instances.COMPLETED.json',
+						headers: {
+							"Authorization": "Basic " + btoa(username + ":" + password)
+						},
+						success:function(data){
+							console.log("Woohoo success");
+							console.log(data.toString());
+							$("#resultsBox").val(JSON.stringify(data));
+						},
+						error:function(data) {
+						console.log("Uh oh.");
+						console.log(data);
+						}
+					});
+					
+				}
+					</code>
+				</pre>
+				</div>
+				</p>
+
+				<!-- GET AVailable Workflow Instances -->
+				<p style="background-color: #92a8d1; padding: 6px;">
+				<button onclick="getAvailableInstances()">GET <strong>Available</strong> Workflows</button>&nbsp;<a href="#" onclick="showSampleCode('getAvailableInstancesDiv'); return false;">?</a><br/>
+				<span style='font-family: "Courier New" '>/etc/workflow/models.json</span><br/>
+				Returns list of available workflows by respective URIs (aka IDs).
+				<div id="getAvailableInstancesDiv" style="background-color: #000; color: #26e715;" hidden>
+				<pre>
+				<code>
+				//Returns list of available workflows
+				function getAvailableInstances() {
+					$.ajax({
+						type:'GET',
+						url: aemServerVal + '/etc/workflow/models.json',
+						headers: {
+							"Authorization": "Basic " + btoa(username + ":" + password)
+						},
+						success:function(data){
+							console.log("Woohoo success");
+							console.log(data.toString());
+							$("#resultsBox").val(JSON.stringify(data));
+						},
+						error:function(data) {
+						console.log("Uh oh.");
+						console.log(data);
+						}
+					});
+					
+				}
+					</code>
+				</pre>
+				</div>
+				</p>
+
+				<!-- GET Workflow Details -->
+				<p style="background-color: #92a8d1; padding: 6px;">
+				<button onclick="getWorkflowDetails()">GET <strong>Specific</strong> Resource Details</button>&nbsp;<a href="#" onclick="showSampleCode('getWorkflowDetailsDiv'); return false;">?</a><br/>
+				<span style='font-family: "Courier New" '>/etc/workflow/instances/{id}.json</span><br/>
+				Returns metadata of provided resource path such as workflows, etc.<br/>
+				ID (URI):
+				<input class="codeAppearance" type="text" id="workflowID" size="40"/>
+				<div id="getWorkflowDetailsDiv" style="background-color: #000; color: #26e715;" hidden>
+				<pre>
+				<code>
+				//Returns metadata and definition of provided workflow ID (URI)
+				function getWorkflowDetails() {
+					
+					var workflowID = $("#workflowID").val();
+
+					$.ajax({
+						type:'GET',
+						url: aemServerVal +  workflowID + ".json",
+						headers: {
+							"Authorization": "Basic " + btoa(username + ":" + password)
+						},
+						success:function(data){
+							console.log("Woohoo success");
+							console.log(data.toString());
+							$("#resultsBox").val(JSON.stringify(data));
+						},
+						error:function(data) {
+						console.log("Uh oh.");
+						console.log(data);
+						}
+					});
+					
+				}
+					</code>
+				</pre>
+				</div>
+				</p>
+
+				<!-- GET CSRF Token -->
+				<p style="background-color: #92a8d1; padding: 6px;">
+				<button onclick="getCSRFToken()">GET CSRF Token</button>&nbsp;<a href="#" onclick="showSampleCode('getCSRFTokenDiv'); return false;">?</a><br/>
+				<span style='font-family: "Courier New" '>/libs/granite/csrf/token.json</span><br/>
+				Returns CSRF token required for POST actions.
+				<div id="getCSRFTokenDiv" style="background-color: #000; color: #26e715;" hidden>
+				<pre>
+				<code>
+				//Get the CSRF token
+				function getCSRFToken() {
+					$.ajax({
+						type:'GET',
+						url: aemServerVal + '/libs/granite/csrf/token.json',
+						headers: {
+							"Authorization": "Basic " + btoa(username + ":" + password)
+						},
+						success:function(data){
+							console.log("Woohoo success");
+							console.log(data.toString());
+							$("#resultsBox").val(JSON.stringify(data));
+						},
+						error:function(data) {
+						console.log("Uh oh.");
+						console.log(data);
+						}
+					});
+				}
+					</code>
+				</pre>
+				</div>
+				</p>
+
+				<p style="background-color: #92a8d1; padding: 6px;">
+				<b>Results:</b> <button onclick="clearResults('resultsBox')">clear</button><br/>
+				<textarea class="codeAppearance" id='resultsBox' cols='60' rows='28'></textarea>
+				</p>
+
+			</td>
+
+			<td valign="top"  width="50%">
+
+			<h4 style="text-align: center;">POST API Calls</h4><hr width="75%">
+
+			<!-- POST Trigger Full Workflow Instance -->
+			<p text-align='center' style="background-color: #92a8d1; padding: 6px;">
+				<button onclick="postInitiateFullWorkflow()">POST <strong>Trigger</strong> Full Workflow Instance</button>&nbsp;<a href="#" onclick="showSampleCode('postInitiateFullWorkflowDiv'); return false;">?</a><br/>
+				<span style='font-family: "Courier New" '>Convenience Method - Not an API - Makes multiple API Calls</span><br/>
+				Leveraging each step below, triggers combination of steps to initiate selected<br/>
+				workflow with specific title and payload provided. Equivalent of submitting an adaptive form to the respective workflow.<br/><br/>
+				
+				CSRF Token:<span style="color: red;">*</span><input class="codeAppearance" type="text" id="fullTriggerWorkflowToken" size="50" /><button onclick="getCSRFToken()">request</button><br/>
+				Workflow:<span style="color: red;">*</span>
+					<select class="codeAppearance" id="fullTriggerWorkflowList" width='40'>
+					</select><button onclick="getAvailableInstances()">get list</button><br/>
+			Date:<span style="color: red;">*</span><input class="codeAppearance" type="text" id='fullTriggerPayloadDateVal' size="40" /><br/>
+			GUID:<span style="color: red;">*</span><input class="codeAppearance" type="text" id='fullTriggerPayloadGuidVal' size="40" /> <button onclick="getGuid()">generate</button><br/>
+			Payload Title:<span style="color: red;">*</span><input class="codeAppearance" type="text" id="fullTriggerPayloadTitleVal" value="data.xml" size="40" /><br/>
+				Workflow Instance Title:<span style="color: red;">*</span> <input class="codeAppearance" type="text" id="fullTriggerTitleVal" size="40" /><br/>
+				Payload:<span style="color: red;">*</span><br/>
+			<i>Sample starting payload shown below. Edit to reflect your required value mapping.</i><br/>
+
+			<!-- Starter payload XML -->
+			<textarea class="codeAppearance" id='fullTriggerPayloadContentVal' cols='85' rows='10'>
+			<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+			<afData>
+			<afUnboundData>
+				<data>
+				<textbox_16516158991518090064653>John Doe</textbox_16516158991518090064653>
+				</data>
+			</afUnboundData>
+			<afBoundData>
+				<data xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/"/>
+			</afBoundData>
+			<afSubmissionInfo>
+				<computedMetaInfo/>
+				<stateOverrides/>
+				<signers/>
+				<afPath>/content/dam/formsanddocuments/simple-assign-form/simple-assign-form</afPath>
+				<afSubmissionTime>20210614082518</afSubmissionTime>
+			</afSubmissionInfo>
+			</afData>
+			</textarea>
+
+			<div id="postInitiateFullWorkflowDiv" style="background-color: #000; color: #26e715;" hidden>
+			<pre>
+			<code>
+				// Initiate new workflow instance by
+				// calling a series of APIs sequentially...
+				
+				// 1. POST workflow payload
+				// 2. POST new workflow instance
+				// 3. POST workflow title update 
+				function postInitiateFullWorkflow() {
+					
+					var fullTriggerPayloadName = $("#fullTriggerPayloadTitleVal").val();
+					var fullTriggerPayloadUploadTokenValue = $("#fullTriggerWorkflowToken").val();
+					var fullTriggerPayloadDate = $("#fullTriggerPayloadDateVal").val();
+					var fullTriggerPayloadGuid =  $("#fullTriggerPayloadGuidVal").val();
+					
+					var fullTriggerPayloadContentVal = $("#fullTriggerPayloadContentVal").val();
+					
+					var fullTriggerWorkflowVal = $("#fullTriggerWorkflowList").val();
+					
+					//Create the payload based on XML provided...
+					var fullTriggerPayloadFile = new File([fullTriggerPayloadContentVal], fullTriggerPayloadName, {
+					type: "text/xml",
+					//type: "application/octet-stream"
+					});
+					
+					if ( fullTriggerPayloadName == "" || fullTriggerPayloadUploadTokenValue == "" || fullTriggerPayloadDate == ""
+						|| fullTriggerPayloadGuid == "" || fullTriggerPayloadContentVal == "" ) {
+						alert("All fields must be completed for Trigger Full Workflow");
+						return;
+					}
+					
+					var fd = new FormData();
+					fd.append(fullTriggerPayloadName, fullTriggerPayloadFile);
+					
+					// 1. First, POST workflow payload
+					$.ajax({
+					url: aemServerVal + "/var/fd/dashboard/payload/server0/" + fullTriggerPayloadDate + "/" + fullTriggerPayloadGuid,
+					type: "POST",
+					data: fd,
+					processData: false,  // tell jQuery not to process the data
+					contentType: false,  // tell jQuery not to set contentType
+					enctype: "multipart/form-data",
+						headers: {
+							//"Content-Type": "application/octet-stream",
+							"Authorization": "Basic " + btoa(username + ":" + password),
+							"CSRF-Token": fullTriggerPayloadUploadTokenValue
+						},
+					success: function(data) {
+						console.log("Woohoo! Initiate Full Workflow success");
+						console.log(data.toString());
+						
+						$("#resultsBox").val(">>> Step 1) Payload upload a success. \n");
+						
+						$("#resultsBox").val( $("#resultsBox").val() + JSON.stringify(data) + "\n");
+						
+						$("#resultsBox").val( $("#resultsBox").val() +  ">>> Proceeding w Step 2) Creating Workflow Instance \n");
+						
+							$.ajax({
+								type:'POST',
+								url: aemServerVal + '/etc/workflow/instances',
+								dataType: 'json',
+								data: {
+									model: fullTriggerWorkflowVal,
+									payloadType: "JCR_PATH",
+									payload: "/var/fd/dashboard/payload/server0/" + fullTriggerPayloadDate + "/" + fullTriggerPayloadGuid + "/" + fullTriggerPayloadName
+								},
+								
+								headers: {
+									"Content-Type": "application/x-www-form-urlencoded",
+									"Authorization": "Basic " + btoa(username + ":" + password),
+									"CSRF-Token": fullTriggerPayloadUploadTokenValue
+								},
+								success:function(data){
+										console.log(">>>>> Step 2) Workflow instance creation success. \n");
+										console.log(data.toString());
+										
+										$("#resultsBox").val( ("#resultsBox").val() + ">>>>> Step 2) Workflow instance creation success. \n");
+										
+										$("#resultsBox").val( ("#resultsBox").val() + JSON.stringify(data) + "\n");
+								},
+								error:function(data) {
+								console.log("Uh oh.");
+								console.log(data);
+								
+								$("#resultsBox").val( $("#resultsBox").val(" Error Will Robinson!!!! ") + "\n" + JSON.stringify(data));
+								}
+							});
+						
+						
+					},
+					error: function(data) {
+							console.log("Uh oh.");
+							console.log(data);
+							$("#resultsBox").val(JSON.stringify(data));
+					}
+					});
+					
+				}
+				</code>
+			</pre>
+			</div>
+			</p>
 
 
-<tr>
-<td valign="top"  width="50%">
-
-<h4 style="text-align: center;">GET API Calls</h4><hr width="75%">
-
-<!-- GET Running Workflow Instances -->
-<p style="background-color: #92a8d1; padding: 6px;">
-<button onclick="getRunningInstances()">GET <strong>Running</strong> Workflow Instances</button>&nbsp;<a href="" onclick="showSampleCode('getRunningInstancesDiv'); return false;">?</a><br/>
-<span style='font-family: "Courier New" '>/etc/workflow/instances.RUNNING.json</span><br/>
-Returns list of running workflow instances by respective URIs (aka IDs).
-<div id="getRunningInstancesDiv" style="background-color: #000; color: #26e715;" hidden>
-<pre>
-  <code>
-//Returns list of running workflow instances
-function getRunningInstances() {
-	$.ajax({
-		type:'GET',
-		url: aemServerVal + '/etc/workflow/instances.RUNNING.json',
-		headers: {
-			"Authorization": "Basic " + btoa(username + ":" + password)
-		},
-		success:function(data){
-				console.log("Woohoo success");
-				console.log(data.toString());
-				$("#resultsBox").val(JSON.stringify(data));
-		},
-		error:function(data) {
-		   console.log("Uh oh.");
-		   console.log(data);
-		}
-	});
-	
-}
-	</code>
-</pre>
-</div>
-</p>
-
-<p style="background-color: #92a8d1; padding: 6px;">
-<button onclick="getSuspendedInstances()">GET <strong>Suspended</strong> Workflow Instances</button>&nbsp;<a href="" onclick="showSampleCode('getSuspendedInstancesDiv'); return false;">?</a><br/>
-<span style='font-family: "Courier New" '>/etc/workflow/instances.SUSPENDED.json</span><br/>
-Returns list of suspended workflow instances by respective URIs (aka IDs).
-<div id="getSuspendedInstancesDiv" style="background-color: #000; color: #26e715;" hidden>
-<pre>
-  <code>
-//Returns list of suspended workflow instances
-function getSuspendedInstances() {
-	$.ajax({
-		type:'GET',
-		url: aemServerVal + '/etc/workflow/instances.SUSPENDED.json',
-		headers: {
-			"Authorization": "Basic " + btoa(username + ":" + password)
-		},
-		success:function(data){
-				console.log("Woohoo success");
-				console.log(data.toString());
-				$("#resultsBox").val(JSON.stringify(data));
-		},
-		error:function(data) {
-		   console.log("Uh oh.");
-		   console.log(data);
-		}
-	 });
-	
-}
-	</code>
-</pre>
-</div>
-</p>
-
-<p style="background-color: #92a8d1; padding: 6px;">
-<button onclick="getAbortedInstances()">GET <strong>Aborted</strong> Workflow Instances</button>&nbsp;<a href="#" onclick="showSampleCode('getAbortedInstancesDiv'); return false;">?</a><br/>
-<span style='font-family: "Courier New" '>/etc/workflow/instances.ABORTED.json</span><br/>
-Returns list of aborted workflow instances by respective URIs (aka IDs).
-<div id="getAbortedInstancesDiv" style="background-color: #000; color: #26e715;" hidden>
-<pre>
-  <code>
-//Returns list of aborted workflow instances
-function getAbortedInstances() {
-	$.ajax({
-		type:'GET',
-		url: aemServerVal + '/etc/workflow/instances.ABORTED.json',
-		headers: {
-			"Authorization": "Basic " + btoa(username + ":" + password)
-		},
-		success:function(data){
-				console.log("Woohoo success");
-				console.log(data.toString());
-				$("#resultsBox").val(JSON.stringify(data));
-		},
-		error:function(data) {
-		   console.log("Uh oh.");
-		   console.log(data);
-		}
-	 });
-	
-}
-	</code>
-</pre>
-</div>
-</p>
-
-<p style="background-color: #92a8d1; padding: 6px;">
-<button onclick="getCompletedInstances()">GET <strong>Completed</strong> Workflow Instances</button>&nbsp;<a href="#" onclick="showSampleCode('getCompletedInstancesDiv'); return false;">?</a><br/>
-<span style='font-family: "Courier New" '>/etc/workflow/instances.COMPLETED.json</span><br/>
-Returns list of completed workflow instances by respective URIs (aka IDs).
-<div id="getCompletedInstancesDiv" style="background-color: #000; color: #26e715;" hidden>
-<pre>
-  <code>
-//Returns list of completed workflow instances
-function getCompletedInstances() {
-	$.ajax({
-		type:'GET',
-		url: aemServerVal + '/etc/workflow/instances.COMPLETED.json',
-		headers: {
-			"Authorization": "Basic " + btoa(username + ":" + password)
-		},
-		success:function(data){
-			console.log("Woohoo success");
-			console.log(data.toString());
-			$("#resultsBox").val(JSON.stringify(data));
-		},
-		error:function(data) {
-		   console.log("Uh oh.");
-		   console.log(data);
-		}
-	 });
-	
-}
-	</code>
-</pre>
-</div>
-</p>
-
-<!-- GET AVailable Workflow Instances -->
-<p style="background-color: #92a8d1; padding: 6px;">
-<button onclick="getAvailableInstances()">GET <strong>Available</strong> Workflows</button>&nbsp;<a href="#" onclick="showSampleCode('getAvailableInstancesDiv'); return false;">?</a><br/>
-<span style='font-family: "Courier New" '>/etc/workflow/models.json</span><br/>
-Returns list of available workflows by respective URIs (aka IDs).
-<div id="getAvailableInstancesDiv" style="background-color: #000; color: #26e715;" hidden>
-<pre>
-  <code>
-//Returns list of available workflows
-function getAvailableInstances() {
-	$.ajax({
-		type:'GET',
-		url: aemServerVal + '/etc/workflow/models.json',
-		headers: {
-			"Authorization": "Basic " + btoa(username + ":" + password)
-		},
-		success:function(data){
-			console.log("Woohoo success");
-			console.log(data.toString());
-			$("#resultsBox").val(JSON.stringify(data));
-		},
-		error:function(data) {
-		   console.log("Uh oh.");
-		   console.log(data);
-		}
-	});
-	
-}
-	</code>
-</pre>
-</div>
-</p>
-
-<!-- GET Workflow Details -->
-<p style="background-color: #92a8d1; padding: 6px;">
-<button onclick="getWorkflowDetails()">GET <strong>Specific</strong> Resource Details</button>&nbsp;<a href="#" onclick="showSampleCode('getWorkflowDetailsDiv'); return false;">?</a><br/>
-<span style='font-family: "Courier New" '>/etc/workflow/instances/{id}.json</span><br/>
-Returns metadata of provided workflow<br/>
-ID (URI):
-<input class="codeAppearance" type="text" id="workflowID" size="40"/>
-<div id="getWorkflowDetailsDiv" style="background-color: #000; color: #26e715;" hidden>
-<pre>
-  <code>
-//Returns metadata and definition of provided workflow ID (URI)
-function getWorkflowDetails() {
-	
-	var workflowID = $("#workflowID").val();
-
-	$.ajax({
-		type:'GET',
-		url: aemServerVal +  workflowID + ".json",
-		headers: {
-			"Authorization": "Basic " + btoa(username + ":" + password)
-		},
-		success:function(data){
-			console.log("Woohoo success");
-			console.log(data.toString());
-			$("#resultsBox").val(JSON.stringify(data));
-		},
-		error:function(data) {
-		   console.log("Uh oh.");
-		   console.log(data);
-		}
-	 });
-	
-}
-	</code>
-</pre>
-</div>
-</p>
-
-<!-- GET CSRF Token -->
-<p style="background-color: #92a8d1; padding: 6px;">
-<button onclick="getCSRFToken()">GET CSRF Token</button>&nbsp;<a href="#" onclick="showSampleCode('getCSRFTokenDiv'); return false;">?</a><br/>
-<span style='font-family: "Courier New" '>/libs/granite/csrf/token.json</span><br/>
-Returns CSRF token required for POST actions.
-<div id="getCSRFTokenDiv" style="background-color: #000; color: #26e715;" hidden>
-<pre>
-  <code>
-//Get the CSRF token
-function getCSRFToken() {
-	$.ajax({
-		type:'GET',
-		url: aemServerVal + '/libs/granite/csrf/token.json',
-		headers: {
-			"Authorization": "Basic " + btoa(username + ":" + password)
-		},
-		success:function(data){
-			console.log("Woohoo success");
-			console.log(data.toString());
-			$("#resultsBox").val(JSON.stringify(data));
-		},
-		error:function(data) {
-		   console.log("Uh oh.");
-		   console.log(data);
-		}
-	 });
-}
-	</code>
-</pre>
-</div>
-</p>
-
-<p style="background-color: #92a8d1; padding: 6px;">
-<b>Results:</b> <button onclick="clearResults('resultsBox')">clear</button><br/>
-<textarea class="codeAppearance" id='resultsBox' cols='60' rows='28'></textarea>
-</p>
-
-</td>
-
-<td valign="top"  width="50%">
-
-<h4 style="text-align: center;">POST API Calls</h4><hr width="75%">
-
-<!-- POST Trigger Full Workflow Instance -->
-<p text-align='center' style="background-color: #92a8d1; padding: 6px;">
-	<button onclick="postInitiateFullWorkflow()">POST <strong>Trigger</strong> Full Workflow Instance</button>&nbsp;<a href="#" onclick="showSampleCode('postInitiateFullWorkflowDiv'); return false;">?</a><br/>
-	<span style='font-family: "Courier New" '>Convenience Method - Not an API - Makes multiple API Calls</span><br/>
-	Leveraging each step below, triggers combination of steps to initiate selected<br/>
-	workflow with specific title and payload provided. Equivalent of submitting an adaptive form to the respective workflow.<br/><br/>
-	
-	CSRF Token:<span style="color: red;">*</span><input class="codeAppearance" type="text" id="fullTriggerWorkflowToken" size="50" /><button onclick="getCSRFToken()">request</button><br/>
-	Workflow:<span style="color: red;">*</span>
-		<select class="codeAppearance" id="fullTriggerWorkflowList" width='40'>
-		</select><button onclick="getAvailableInstances()">get list</button><br/>
-Date:<span style="color: red;">*</span><input class="codeAppearance" type="text" id='fullTriggerPayloadDateVal' size="40" /><br/>
-GUID:<span style="color: red;">*</span><input class="codeAppearance" type="text" id='fullTriggerPayloadGuidVal' size="40" /> <button onclick="getGuid()">generate</button><br/>
-Payload Title:<span style="color: red;">*</span><input class="codeAppearance" type="text" id="fullTriggerPayloadTitleVal" value="data.xml" size="40" /><br/>
-	Workflow Instance Title:<span style="color: red;">*</span> <input class="codeAppearance" type="text" id="fullTriggerTitleVal" size="40" /><br/>
-	Payload:<span style="color: red;">*</span><br/>
-<i>Sample starting payload shown below. Edit to reflect your required value mapping.</i><br/>
-
-<!-- Starter payload XML -->
-<textarea class="codeAppearance" id='fullTriggerPayloadContentVal' cols='85' rows='10'>
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<afData>
-  <afUnboundData>
-    <data>
-      <textbox_16516158991518090064653>John Doe</textbox_16516158991518090064653>
-    </data>
-  </afUnboundData>
-  <afBoundData>
-    <data xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/"/>
-  </afBoundData>
-  <afSubmissionInfo>
-    <computedMetaInfo/>
-    <stateOverrides/>
-    <signers/>
-    <afPath>/content/dam/formsanddocuments/simple-assign-form/simple-assign-form</afPath>
-    <afSubmissionTime>20210614082518</afSubmissionTime>
-  </afSubmissionInfo>
-</afData>
-</textarea>
-
-<div id="postInitiateFullWorkflowDiv" style="background-color: #000; color: #26e715;" hidden>
-<pre>
-  <code>
-	// Initiate new workflow instance by
-	// calling a series of APIs sequentially...
-	
-	// 1. POST workflow payload
-	// 2. POST new workflow instance
-	// 3. POST workflow title update 
-	function postInitiateFullWorkflow() {
-		
-		var fullTriggerPayloadName = $("#fullTriggerPayloadTitleVal").val();
-		var fullTriggerPayloadUploadTokenValue = $("#fullTriggerWorkflowToken").val();
-		var fullTriggerPayloadDate = $("#fullTriggerPayloadDateVal").val();
-		var fullTriggerPayloadGuid =  $("#fullTriggerPayloadGuidVal").val();
-		
-		var fullTriggerPayloadContentVal = $("#fullTriggerPayloadContentVal").val();
-		
-		var fullTriggerWorkflowVal = $("#fullTriggerWorkflowList").val();
-		
-		//Create the payload based on XML provided...
-		var fullTriggerPayloadFile = new File([fullTriggerPayloadContentVal], fullTriggerPayloadName, {
-		  type: "text/xml",
-		  //type: "application/octet-stream"
-		});
-		
-		if ( fullTriggerPayloadName == "" || fullTriggerPayloadUploadTokenValue == "" || fullTriggerPayloadDate == ""
-			|| fullTriggerPayloadGuid == "" || fullTriggerPayloadContentVal == "" ) {
-			alert("All fields must be completed for Trigger Full Workflow");
-			return;
-		}
-		
-		var fd = new FormData();
-		fd.append(fullTriggerPayloadName, fullTriggerPayloadFile);
-		
-		// 1. First, POST workflow payload
-		$.ajax({
-		   url: aemServerVal + "/var/fd/dashboard/payload/server0/" + fullTriggerPayloadDate + "/" + fullTriggerPayloadGuid,
-		   type: "POST",
-		   data: fd,
-		   processData: false,  // tell jQuery not to process the data
-		   contentType: false,  // tell jQuery not to set contentType
-           enctype: "multipart/form-data",
-			headers: {
-				//"Content-Type": "application/octet-stream",
-				"Authorization": "Basic " + btoa(username + ":" + password),
-				"CSRF-Token": fullTriggerPayloadUploadTokenValue
-			},
-		   success: function(data) {
-			   console.log("Woohoo! Initiate Full Workflow success");
-			   console.log(data.toString());
-			   
-			   $("#resultsBox").val(">>> Step 1) Payload upload a success. \n");
-			   
-			   $("#resultsBox").val( $("#resultsBox").val() + JSON.stringify(data) + "\n");
-			   
-			   $("#resultsBox").val( $("#resultsBox").val() +  ">>> Proceeding w Step 2) Creating Workflow Instance \n");
-			   
-			   	$.ajax({
+			<p style="background-color: #92a8d1; padding: 6px;">
+			<button onclick="postNewInstance()">POST <strong>Create</strong> New Workflow Instance</button>&nbsp;<a href="#" onclick="showSampleCode('postNewInstanceDiv'); return false;">?</a><br/>
+			<span style='font-family: "Courier New" '>/etc/workflow/instances</span><br/>
+			Initiates a new workflow instance with provided required parameters. <br/>
+			CSRF Token: <input class="codeAppearance" type="text" id="tokenVal" size="40" /><br/>
+			Model ID (URI): <input class="codeAppearance" type="text" id="modelIDVal" size="40" value="/var/workflow/models/OHAWaterReview"/><br/>
+			Payload Type (JCR_PATH or URL): <input class="codeAppearance" type="text" id="payloadTypeVal" size="40" value="JCR_PATH"/><br/>
+			Payload Path: <input class="codeAppearance" type="text" id="payloadPathVal" size="40" /><br/>
+			<div id="postNewInstanceDiv" style="background-color: #000; color: #26e715;" hidden>
+			<pre>
+			<code>
+			//Initiate new workflow instance
+			function postNewInstance() {
+				
+				var modelIDValue = $("#modelIDVal").val();
+				var payloadPathValue = $("#payloadPathVal").val();
+				var payloadType = $("#payloadTypeVal").val();
+				
+				var tokenValue = $("#tokenVal").val();
+				
+				$.ajax({
 					type:'POST',
 					url: aemServerVal + '/etc/workflow/instances',
 					dataType: 'json',
 					data: {
-						model: fullTriggerWorkflowVal,
-						payloadType: "JCR_PATH",
-						payload: "/var/fd/dashboard/payload/server0/" + fullTriggerPayloadDate + "/" + fullTriggerPayloadGuid + "/" + fullTriggerPayloadName
+						model: modelIDValue,
+						payloadType: payloadType,
+						payload: payloadPathValue
 					},
 					
 					headers: {
 						"Content-Type": "application/x-www-form-urlencoded",
 						"Authorization": "Basic " + btoa(username + ":" + password),
-						"CSRF-Token": fullTriggerPayloadUploadTokenValue
+						"CSRF-Token": tokenValue
 					},
 					success:function(data){
-							console.log(">>>>> Step 2) Workflow instance creation success. \n");
+							console.log("Woohoo success");
 							console.log(data.toString());
-							
-							$("#resultsBox").val( ("#resultsBox").val() + ">>>>> Step 2) Workflow instance creation success. \n");
-							
-							$("#resultsBox").val( ("#resultsBox").val() + JSON.stringify(data) + "\n");
+							$("#resultsBox").val(JSON.stringify(data));
 					},
 					error:function(data) {
-					   console.log("Uh oh.");
-					   console.log(data);
-					 
-					   $("#resultsBox").val( $("#resultsBox").val(" Error Will Robinson!!!! ") + "\n" + JSON.stringify(data));
+					console.log("Uh oh.");
+					console.log(data);
+					$("#resultsBox").val(JSON.stringify(data));
 					}
-				 });
-			   
-			   
-		   },
-		   error: function(data) {
-                   console.log("Uh oh.");
-                   console.log(data);
-                   $("#resultsBox").val(JSON.stringify(data));
-		   }
-		});
+				});
+				
+			}
+				</code>
+			</pre>
+			</div>
+			</p>
+
+			<p style="background-color: #92a8d1; padding: 6px;">
+			<button onclick="setWorkflowTitle()">POST <strong>Set</strong> Workflow Title</button>&nbsp;<a href="#" onclick="showSampleCode('setWorkflowTitleDiv'); return false;">?</a><br/>
+			<span style='font-family: "Courier New" '>/etc/workflow/instances/{id}</span><br/>
+			Sets the workflow title of a previously created workflow instance.<br/>
+			Workflow URI (aka ID): <input class="codeAppearance" type="text" id="workflowURIVal" size="40" /><br/>
+			Workflow Title: <input class="codeAppearance" type="text" id="workflowTitleVal" size="40" /><br/>
+			CSRF Token: <input class="codeAppearance" type="text" id="UpdateTokenVal" size="40" /><br/>
+
+			<div id="setWorkflowTitleDiv" style="background-color: #000; color: #26e715;" hidden>
+			<pre>
+			<code>
+			//Update/Set the title of a workflow
+			function setWorkflowTitle() {
+				var existingWorkflowIDValue = $("#workflowURIVal").val();
+				var workflowNameValue = $("#workflowTitleVal").val();
+				
+				var workflowUpdateTokenValue = $("#UpdateTokenVal").val();
+				
+				var updateURL = aemServerVal + "/etc/workflow/instances" + existingWorkflowIDValue;
+					
+				$.ajax({
+					type:'POST',
+					url: updateURL,
+					dataType: 'json',
+					data: {
+						action: "UPDATE",
+						workflowTitle: workflowNameValue,
+						primaryType: "nt:file"
+					},
+					
+					headers: {
+						"Content-Type": "application/x-www-form-urlencoded",
+						"Authorization": "Basic " + btoa(username + ":" + password),
+						"CSRF-Token": workflowUpdateTokenValue
+					},
+					success:function(data){
+							console.log("Woohoo success");
+							console.log(data.toString());
+							$("#resultsBox").val(JSON.stringify(data));
+					},
+					error:function(data) {
+					console.log("Uh oh.");
+					console.log(data);
+					$("#resultsBox").val(JSON.stringify(data));
+					}
+				});
+				
+			}
+				</code>
+			</pre>
+			</div>
+
+			</p>
+
+
+			<p style="background-color: #92a8d1; padding: 6px;">
+				<button onclick="resumeWorkflow()">POST <strong>Resume</strong> Stalled Workflow</button>&nbsp;<a href="#" onclick="showSampleCode('resumeWorkflowDiv'); return false;">?</a><br/>
+				<span style='font-family: "Courier New" '>/etc/workflow/instances/{id}</span><br/>
+				Restarts a previously paused or failed workflow instance.<br/>
+				Workflow URI (aka ID): <input class="codeAppearance" type="text" id="workflowToResumeVal" size="40" /><br/>
+				CSRF Token: <input class="codeAppearance" type="text" id="UpdateTokenVal" size="40" /><br/>
+				
+				<div id="resumeWorkflowDiv" style="background-color: #000; color: #26e715;" hidden>
+				<pre>
+				<code>
+				//Resume a previously failed workflow
+				function resumeWorkflow() {
+					var stalledWorkflowIDValue = $("#workflowToResumeVal").val();
+					
+					var workflowUpdateTokenValue = $("#UpdateTokenVal").val();
+					
+					var resumeURL = aemServerVal + "/etc/workflow/instances" + stalledWorkflowIDValue;
+						
+					$.ajax({
+						type:'POST',
+						url: resumeURL,
+						dataType: 'json',
+						data: {
+							action: "RESUME",
+						},
+						
+						headers: {
+							"Content-Type": "application/x-www-form-urlencoded",
+							"Authorization": "Basic " + btoa(username + ":" + password),
+							"CSRF-Token": workflowUpdateTokenValue
+						},
+						success:function(data){
+								console.log("Woohoo success");
+								console.log(data.toString());
+								$("#resultsBox").val(JSON.stringify(data));
+						},
+						error:function(data) {
+						console.log("Uh oh.");
+						console.log(data);
+						$("#resultsBox").val(JSON.stringify(data));
+						}
+					});
+					
+				}
+					</code>
+				</pre>
+				</div>
+				
+				</p>
+
+			<p style="background-color: #92a8d1; padding: 6px;">
+			<button onclick="postPayloadFile()">POST <strong>Upload</strong> Workflow Payload File</button>&nbsp;<a href="#" onclick="showSampleCode('postPayloadFileDiv'); return false;">?</a><br/>
+			<span style='font-family: "Courier New" '>/var/fd/dashboard/payload/server0/{date}/{guid}</span><br/>
+			Uploads an XML file representing content for a workflow.<br/>
+			Date: <input class="codeAppearance" type="text" id='payloadDateVal' size="40" /><br/>
+			GUID: <input class="codeAppearance" type="text" id='payloadGuidVal' size="40" /> <button onclick="getGuid()">generate</button><br/>
+			Payload File Title: <input class="codeAppearance" type="text" id='payloadFileTitleVal' size="40" value="testFile.xml" /><br/>
+			<!-- Payload File: <input type="file" id='payloadFileVal' size="40" /><br/> -->
+			CSRF Token: <input class="codeAppearance" type="text" id="payloadUploadTokenVal" size="40" /><br/>
+			Payload (content for workflow as normally provided by form): <br/>
+			<i>Sample starting payload shown below. Edit to reflect your required value mapping.</i><br/>
+			<textarea class="codeAppearance" id='payloadContentVal' cols='85' rows='10'>
+			<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+			<afData>
+			<afUnboundData>
+				<data>
+				<textbox_16516158991518090064653>John Doe</textbox_16516158991518090064653>
+				</data>
+			</afUnboundData>
+			<afBoundData>
+				<data xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/"/>
+			</afBoundData>
+			<afSubmissionInfo>
+				<computedMetaInfo/>
+				<stateOverrides/>
+				<signers/>
+				<afPath>/content/dam/formsanddocuments/simple-assign-form/simple-assign-form</afPath>
+				<afSubmissionTime>20210614082518</afSubmissionTime>
+			</afSubmissionInfo>
+			</afData>
+			</textarea>
+
+			<div id="postPayloadFileDiv" style="background-color: #000; color: #26e715;" hidden>
+			<pre>
+			<code>
+			// POST payload XML file into the JCR
+			function postPayloadFile() {
+					
+				var payloadName = $("#payloadFileTitleVal").val();
+				var payloadUploadTokenValue = $("#payloadUploadTokenVal").val();
+				var payloadDate = $("#payloadDateVal").val();
+				var payloadGuid =  $("#payloadGuidVal").val();
+				
+				//Create a file object containing the provided XML and name
+				var payloadFile = new File([$("#payloadContentVal").val()], payloadName, {
+				type: "text/xml",
+				});
+				
+				var fd = new FormData();
+				fd.append(payloadName, payloadFile);
+				
+				$.ajax({
+				url: aemServerVal + "/var/fd/dashboard/payload/server0/" + payloadDate + "/" + payloadGuid,
+				type: "POST",
+				data: fd,
+				processData: false, 
+				contentType: false,
+					enctype: "multipart/form-data",
+					headers: {
+						"Authorization": "Basic " + btoa(username + ":" + password),
+						"CSRF-Token": payloadUploadTokenValue
+					},
+				success: function(data) {
+					console.log("Woohoo success");
+						console.log(data.toString());
+						$("#resultsBox").val(JSON.stringify(data));
+				},
+				error: function(data) {
+					console.log("Uh oh.");
+					console.log(data);
+					$("#resultsBox").val(JSON.stringify(data));
+				}
+				});
+			}  
+				</code>
+			</pre>
+			</div>
+
+
+			</p>
+
+			</td>
+			</tr>
+
+		</tbody>
+
+	</table>
+
+  </div>
+  <!-- Tab 1 Forms Workflow End-->
+
+<!-- Tab 2 Forms Output Workflow-->
+<div id="tabs-2">
+  
+	Related documentation:<br/>
+  <ul>
+  <li><a target="_new" href="https://experienceleague.adobe.com/docs/experience-manager-learn/forms/document-services/output-and-forms-services-article-develop.html">Developing with Output and Forms Services in AEM Forms</a>
+  </ul>
+
+	
+  <table valign='top' cellpadding='2' width="100%">
+	<thead>
+		<tr>
+			<th style="width:200px;">POST API Calls <br/> <hr width="75%"></th>
+		</tr>
+	</thead>
 		
-	}
-	</code>
-</pre>
-</div>
-</p>
-
-
-<p style="background-color: #92a8d1; padding: 6px;">
-<button onclick="postNewInstance()">POST <strong>Create</strong> New Workflow Instance</button>&nbsp;<a href="#" onclick="showSampleCode('postNewInstanceDiv'); return false;">?</a><br/>
-<span style='font-family: "Courier New" '>/etc/workflow/instances</span><br/>
-Initiates a new workflow instance with provided required parameters. <br/>
-CSRF Token: <input class="codeAppearance" type="text" id="tokenVal" size="40" /><br/>
-Model ID (URI): <input class="codeAppearance" type="text" id="modelIDVal" size="40" value="/var/workflow/models/OHAWaterReview"/><br/>
-Payload Type (JCR_PATH or URL): <input class="codeAppearance" type="text" id="payloadTypeVal" size="40" value="JCR_PATH"/><br/>
-Payload Path: <input class="codeAppearance" type="text" id="payloadPathVal" size="40" /><br/>
-<div id="postNewInstanceDiv" style="background-color: #000; color: #26e715;" hidden>
-<pre>
-  <code>
-//Initiate new workflow instance
-function postNewInstance() {
+	<tbody>
+	<tr>
 	
-	var modelIDValue = $("#modelIDVal").val();
-	var payloadPathValue = $("#payloadPathVal").val();
-	var payloadType = $("#payloadTypeVal").val();
+	<td valign="top" width="100%">
 	
-	var tokenValue = $("#tokenVal").val();
-	
-	$.ajax({
-		type:'POST',
-		url: aemServerVal + '/etc/workflow/instances',
-		dataType: 'json',
-		data: {
-			model: modelIDValue,
-			payloadType: payloadType,
-			payload: payloadPathValue
-		},
+		<p style="background-color: #92a8d1; padding: 6px;">
+		<button onclick="postGeneratePDF()">POST <strong>Generate</strong> merged PDF file</button>&nbsp;<a href="#" onclick="showSampleCode('outputPdfJSONDiv'); return false;">?</a><br/>
+		<span style='font-family: "Courier New" '>/content/AemFormsSamples/outputservice.html</span><br/>
+		Returns generated PDF based on provided XDP template and passed XML data.<br/><br/>
 		
-		headers: {
-			"Content-Type": "application/x-www-form-urlencoded",
-			"Authorization": "Basic " + btoa(username + ":" + password),
-			"CSRF-Token": tokenValue
-		},
-		success:function(data){
-				console.log("Woohoo success");
-				console.log(data.toString());
-				$("#resultsBox").val(JSON.stringify(data));
-		},
-		error:function(data) {
-		   console.log("Uh oh.");
-		   console.log(data);
-		   $("#resultsBox").val(JSON.stringify(data));
-		}
-	 });
-	
-}
-	</code>
-</pre>
-</div>
-</p>
+		<label for="myTemplateFile">Select template file (PDF or XDP):</label>
+		<input type="file" id="myTemplateFile" name="myTemplateFile" accept=".pdf,.xdp"><br/><br/>
 
-<p style="background-color: #92a8d1; padding: 6px;">
-<button onclick="setWorkflowTitle()">POST <strong>Set</strong> Workflow Title</button>&nbsp;<a href="#" onclick="showSampleCode('setWorkflowTitleDiv'); return false;">?</a><br/>
-<span style='font-family: "Courier New" '>/etc/workflow/instances/{id}</span><br/>
-Sets the workflow title of a previously created workflow instance.<br/>
-Workflow URI (aka ID): <input class="codeAppearance" type="text" id="workflowURIVal" size="40" /><br/>
-Workflow Title: <input class="codeAppearance" type="text" id="workflowTitleVal" size="40" /><br/>
-CSRF Token: <input class="codeAppearance" type="text" id="UpdateTokenVal" size="40" /><br/>
+		Payload:<span style="color: red;">*</span><br/>
+			<i>Sample starting payload shown below. Edit to reflect your required value mapping.</i><br/>
 
-<div id="setWorkflowTitleDiv" style="background-color: #000; color: #26e715;" hidden>
-<pre>
-  <code>
-//Update/Set the title of a workflow
-function setWorkflowTitle() {
-	var existingWorkflowIDValue = $("#workflowURIVal").val();
-	var workflowNameValue = $("#workflowTitleVal").val();
+			<!-- Starter payload XML -->
+			<textarea class="codeAppearance" id='pdfOutputPayloadContentVal' cols='100' rows='20'>
+<xml>
+	<providerFirstName>
+		John
+	</providerFirstName>
+	<providerLastName>
+		Doe
+	</providerLastName>
+	<providerStreet>
+		123 Elm Street
+	</providerStreet>
+	<providerCityStateZip>
+		Some City, CA, 95110
+	</providerCityStateZip>
+	<noticeDetails>
+	The documentation provided to us by your office is missing information.
+	We require the following additional information:
+	- Board certifications
+	- Notarized medical license from the State of California
+	- Proof of malpractice insurance
+	- Library Card
+	- Birth Certificate
+	- and your Drivers License or Passport
 	
-	var workflowUpdateTokenValue = $("#UpdateTokenVal").val();
-	
-	var updateURL = aemServerVal + "/etc/workflow/instances" + existingWorkflowIDValue;
+	Your provider application will be paused until these documents have been received by our office.
+	</noticeDetails>
+</xml>						
+			</textarea>
 		
-	$.ajax({
-		type:'POST',
-		url: updateURL,
-		dataType: 'json',
-		data: {
-			action: "UPDATE",
-			workflowTitle: workflowNameValue,
-			primaryType: "nt:file"
-		},
-		
-		headers: {
-			"Content-Type": "application/x-www-form-urlencoded",
-			"Authorization": "Basic " + btoa(username + ":" + password),
-			"CSRF-Token": workflowUpdateTokenValue
-		},
-		success:function(data){
-				console.log("Woohoo success");
-				console.log(data.toString());
-				$("#resultsBox").val(JSON.stringify(data));
-		},
-		error:function(data) {
-		   console.log("Uh oh.");
-		   console.log(data);
-		   $("#resultsBox").val(JSON.stringify(data));
-		}
-	 });
-	
-}
-	</code>
-</pre>
-</div>
-
-</p>
-
-
-<p style="background-color: #92a8d1; padding: 6px;">
-	<button onclick="resumeWorkflow()">POST <strong>Resume</strong> Stalled Workflow</button>&nbsp;<a href="#" onclick="showSampleCode('resumeWorkflowDiv'); return false;">?</a><br/>
-	<span style='font-family: "Courier New" '>/etc/workflow/instances/{id}</span><br/>
-	Restarts a previously paused or failed workflow instance.<br/>
-	Workflow URI (aka ID): <input class="codeAppearance" type="text" id="workflowToResumeVal" size="40" /><br/>
-	CSRF Token: <input class="codeAppearance" type="text" id="UpdateTokenVal" size="40" /><br/>
-	
-	<div id="resumeWorkflowDiv" style="background-color: #000; color: #26e715;" hidden>
-	<pre>
-	  <code>
-	//Resume a previously failed workflow
-	function resumeWorkflow() {
-		var stalledWorkflowIDValue = $("#workflowToResumeVal").val();
-		
-		var workflowUpdateTokenValue = $("#UpdateTokenVal").val();
-		
-		var resumeURL = aemServerVal + "/etc/workflow/instances" + stalledWorkflowIDValue;
+		<div id="outputPdfJSONDiv" style="background-color: #000; color: #26e715;" hidden>
+		<pre>
+		  <code>
+		//Returns metadata and definition of provided workflow ID (URI)
+		function getSitesUrlJSON() {
 			
-		$.ajax({
-			type:'POST',
-			url: resumeURL,
-			dataType: 'json',
-			data: {
-				action: "RESUME",
-			},
-			
-			headers: {
-				"Content-Type": "application/x-www-form-urlencoded",
-				"Authorization": "Basic " + btoa(username + ":" + password),
-				"CSRF-Token": workflowUpdateTokenValue
-			},
-			success:function(data){
+			var workflowID = $("#workflowID").val();
+		
+			$.ajax({
+				type:'GET',
+				url: aemServerVal +  workflowID + ".json",
+				headers: {
+					"Authorization": "Basic " + btoa(username + ":" + password)
+				},
+				success:function(data){
 					console.log("Woohoo success");
 					console.log(data.toString());
 					$("#resultsBox").val(JSON.stringify(data));
-			},
-			error:function(data) {
-			   console.log("Uh oh.");
-			   console.log(data);
-			   $("#resultsBox").val(JSON.stringify(data));
-			}
-		 });
+				},
+				error:function(data) {
+				   console.log("Uh oh.");
+				   console.log(data);
+				}
+			 });
+			
+		}
+			</code>
+		</pre>
+		</div>
+		</p>
 		
-	}
-		</code>
-	</pre>
-	</div>
-	
-	</p>
-
-<p style="background-color: #92a8d1; padding: 6px;">
-<button onclick="postPayloadFile()">POST <strong>Upload</strong> Workflow Payload File</button>&nbsp;<a href="#" onclick="showSampleCode('postPayloadFileDiv'); return false;">?</a><br/>
-<span style='font-family: "Courier New" '>/var/fd/dashboard/payload/server0/{date}/{guid}</span><br/>
-Uploads an XML file representing content for a workflow.<br/>
-Date: <input class="codeAppearance" type="text" id='payloadDateVal' size="40" /><br/>
-GUID: <input class="codeAppearance" type="text" id='payloadGuidVal' size="40" /> <button onclick="getGuid()">generate</button><br/>
-Payload File Title: <input class="codeAppearance" type="text" id='payloadFileTitleVal' size="40" value="testFile.xml" /><br/>
-<!-- Payload File: <input type="file" id='payloadFileVal' size="40" /><br/> -->
-CSRF Token: <input class="codeAppearance" type="text" id="payloadUploadTokenVal" size="40" /><br/>
-Payload (content for workflow as normally provided by form): <br/>
-<i>Sample starting payload shown below. Edit to reflect your required value mapping.</i><br/>
-<textarea class="codeAppearance" id='payloadContentVal' cols='85' rows='10'>
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<afData>
-  <afUnboundData>
-    <data>
-      <textbox_16516158991518090064653>John Doe</textbox_16516158991518090064653>
-    </data>
-  </afUnboundData>
-  <afBoundData>
-    <data xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/"/>
-  </afBoundData>
-  <afSubmissionInfo>
-    <computedMetaInfo/>
-    <stateOverrides/>
-    <signers/>
-    <afPath>/content/dam/formsanddocuments/simple-assign-form/simple-assign-form</afPath>
-    <afSubmissionTime>20210614082518</afSubmissionTime>
-  </afSubmissionInfo>
-</afData>
-</textarea>
-
-<div id="postPayloadFileDiv" style="background-color: #000; color: #26e715;" hidden>
-<pre>
-  <code>
-// POST payload XML file into the JCR
-function postPayloadFile() {
 		
-	var payloadName = $("#payloadFileTitleVal").val();
-	var payloadUploadTokenValue = $("#payloadUploadTokenVal").val();
-	var payloadDate = $("#payloadDateVal").val();
-	var payloadGuid =  $("#payloadGuidVal").val();
+		
+		<p style="background-color: #92a8d1; padding: 6px;">
+		<b>Results:</b> <button onclick="clearSitesResults()">clear</button><br/>
+		<textarea class='codeAppearance' id='sitesResultsBox' cols='90' rows='28'></textarea>
+		</p>
 	
-	//Create a file object containing the provided XML and name
-	var payloadFile = new File([$("#payloadContentVal").val()], payloadName, {
-	  type: "text/xml",
-	});
 	
-	var fd = new FormData();
-	fd.append(payloadName, payloadFile);
-	
-	$.ajax({
-	   url: aemServerVal + "/var/fd/dashboard/payload/server0/" + payloadDate + "/" + payloadGuid,
-	   type: "POST",
-	   data: fd,
-	   processData: false, 
-	   contentType: false,
-		enctype: "multipart/form-data",
-		headers: {
-			"Authorization": "Basic " + btoa(username + ":" + password),
-			"CSRF-Token": payloadUploadTokenValue
-		},
-	   success: function(data) {
-		   console.log("Woohoo success");
-			console.log(data.toString());
-			$("#resultsBox").val(JSON.stringify(data));
-	   },
-	   error: function(data) {
-		   console.log("Uh oh.");
-		   console.log(data);
-		   $("#resultsBox").val(JSON.stringify(data));
-	   }
-	});
-}  
-	</code>
-</pre>
-</div>
+	</td>
+	</tr>
+	</tbody>
+	</table>
 
-
-</p>
-
-</td>
-</tr>
-
-</tbody>
-
-</table>
 
 </div>
+<!-- End Tab 2 Forms Output-->
 
-<!-- Sites Tab Content -->
-<div id="tabs-2">
+<!-- Tab 3 Sites -->
+<div id="tabs-3">
    Related documentation:<br/>
 	<ul>
 	<li><a target="_new" href="https://experienceleague.adobe.com/docs/experience-manager-65/developing/components/pageinfo.html?lang=en#page-information-providers">Obtaining Page Information in JSON Format</a>
@@ -2115,7 +2346,7 @@ function postPayloadFile() {
 <!-- End Sites Content -->
 
 <!-- Assets Tab Content -->
-<div id="tabs-3">
+<div id="tabs-4">
    Related documentation:<br/>
 	<ul>
 	<li><a target="_new" href="https://experienceleague.adobe.com/docs/experience-manager-65/assets/extending/mac-api-assets.html?lang=en#overview">AEM Assets HTTP API</a>
