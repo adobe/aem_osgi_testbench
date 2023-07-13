@@ -1,6 +1,6 @@
 # aem_osgi_testbench
 
-About the Test Bench
+About AEM OSGi Test Bench
 
 OSGI REST Test Bench was created to provide developer examples of interacting with AEM OSGI via REST based APIs. It provides functional cases to query AEM for available workflows, running workflows, creation of workflows, resources from Sites instances as well as Assets specific content.
 
